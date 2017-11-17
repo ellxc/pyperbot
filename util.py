@@ -1,5 +1,9 @@
-from asyncio import events, coroutine, locks, sleep
+import _thread
+import asyncio
 import collections
+import ctypes
+from asyncio import events, coroutine, locks, sleep
+from concurrent.futures import Future, ProcessPoolExecutor
 
 
 class PipeClosed(Exception):
@@ -14,6 +18,41 @@ class ItemAdded(Exception):
     pass
 
 
+def run_future(func, futr, *args, **kwargs):
+    return futr.set_result(func(*args, **kwargs))
+
+
+async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
+    futr = Future()
+    t = _thread.start_new_thread(run_future, (func, futr) + args, kwargs)
+    if timeout is None:
+        await asyncio.wrap_future(futr)
+    else:
+        try:
+            await asyncio.wait_for(asyncio.wrap_future(futr), timeout=timeout)
+        except asyncio.TimeoutError:
+            res = ctypes.pythonapi.PyThreadState_SetAsyncExc(t,
+                                                             ctypes.py_object(TimeoutError))
+            raise TimeoutError()
+    return futr.result()
+
+
+x = ProcessPoolExecutor()
+
+
+async def schedproccedfunc(func, *args, timeout=None, **kwargs):
+    f = x.submit(func, *args, **kwargs)
+    if timeout is None:
+        await asyncio.wrap_future(f)
+    else:
+        try:
+            await asyncio.wait_for(asyncio.wrap_future(f), timeout=timeout)
+        except asyncio.TimeoutError:
+            x.shutdown(wait=False)
+            raise TimeoutError()
+    return f.result()
+
+
 
 class shielded():
     def __init__(self, pipe):
@@ -24,6 +63,24 @@ class shielded():
 def wait_for(future, seconds):
     yield from sleep(seconds)
     future.set_result(None)
+
+
+async def aliashelper(args, inpipe, outpipe):
+    called = False
+    try:
+        while 1:
+            x = await inpipe.recv()
+            called = True
+            if args.args:
+                outpipe.send(x.reply(text=args.text.format(x.data), data=[args.data, x.data]))
+            else:
+                outpipe.send(x)
+    except PipeClosed:
+        if not called:
+            outpipe.send(args)
+    finally:
+        outpipe.close()
+        inpipe.close()
 
 
 class WaitableQueue:

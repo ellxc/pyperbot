@@ -1,12 +1,10 @@
-import inspect
-import getopt
-from util import PipeClosed
 import functools
+import getopt
+import inspect
 import re
-from dateutil import parser
-from datetime import datetime, time, date, timedelta
-
 import shlex
+
+from util import PipeClosed
 
 
 def plugin(_class):
@@ -192,11 +190,27 @@ def command(word=None): #multilevel wrapper drifting
             return _func
         _func._commands = [name]
 
-        if inspect.isgeneratorfunction(_func):
+        if inspect.iscoroutinefunction(_func):
             @functools.wraps(_func)
-            def outfunc(this, args, out):
+            async def outfunc(this, args, out):
                 try:
-                    print(args)
+                    y = await _func(this, args)
+                    if y is not None:
+                        out.send(y)
+                except PipeClosed:
+                    pass
+        elif inspect.isasyncgenfunction(_func):
+            @functools.wraps(_func)
+            async def outfunc(this, args, out):
+                try:
+                    async for z in _func(this, args):
+                        out.send(z)
+                except PipeClosed:
+                    pass
+        elif inspect.isgeneratorfunction(_func):
+            @functools.wraps(_func)
+            async def outfunc(this, args, out):
+                try:
                     y = _func(this, args)
                     for z in y:
                         out.send(z)
@@ -204,9 +218,8 @@ def command(word=None): #multilevel wrapper drifting
                     pass
         else:
             @functools.wraps(_func)
-            def outfunc(this, args, out):
+            async def outfunc(this, args, out):
                 try:
-                    print(args)
                     y = _func(this, args)
                     if y is not None:
                         out.send(y)
@@ -215,9 +228,8 @@ def command(word=None): #multilevel wrapper drifting
 
         @functools.wraps(_func)
         async def inner(this, args, inpipe, outpipe):
-            print(this, args, inpipe, outpipe)
             try:
-                outfunc(this, args, outpipe)
+                await outfunc(this, args, outpipe)
             except PipeClosed:
                 pass  # pipe ended
             except Exception as e:
@@ -252,7 +264,6 @@ def pipeinable_command(word = None):
         outexpect = sig.return_annotation
         expected_args = None
         expected_longargs = []
-        print(name, params)
         if params == 2:
             __func = lambda _this, _args, _x: _func(_this, _x)
         else:

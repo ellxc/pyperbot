@@ -1,29 +1,53 @@
 # coding=utf-8
 import asyncio
-from asyncio.coroutines import _format_coroutine
-import traceback
-from Message import Message
+import importlib
+import inspect
 import logging
+import os
+import traceback
+
+import pyparsing as pyp
+from pyparsing import ParseException
+
+from Message import Message
 from client import IrcClient
 from events import EventManager
-from parse4 import parse
-import inspect
-import importlib
-import os
 from piping import PipeManager
-import pyparsing as pyp
-from wrappers import plugin
-from collections import defaultdict
-from threading import Event
-import time
+from pyperparser import total, inners
+
+
+class missingarg(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+    def __str__(self):
+        return self.ex
 
 class envnotdef(Exception):
     def __init__(self, loc, ex):
         self.loc = loc
         self.ex = ex
 
+
+class funcnotdef(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+
+class piperror(Exception):
+    def __init__(self, errstr, exs):
+        self.errstr = errstr
+        self.exs = exs
+
+
+class toomany(Exception):
+    pass
+
+
 class Pyperbot:
-    def __init__(self, loop :asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, shell=True):
         self.loop = loop
         self.clients = {}
         self.em = EventManager(loop=loop)
@@ -37,9 +61,9 @@ class Pyperbot:
         self.em.register_handler("PRIVMSG",
                               lambda message: a.em.fire_event("command", msg=message) if message.text.startswith(
                                   "#") else None)
-        self.em.register_handler("command", self.handle_command)
-
+        self.em.register_handler("command", lambda msg: asyncio.ensure_future(self.parse_msg(msg), loop=self.loop))
         self.env = {"baz": "quux", "a": "x", "x": "b", "foo": {"bar": "baz"}}
+        self.userspaces = {}
 
     def connect_to(self, servername, host, port, nick="pyperbot", channels=[], admins=None, password=None,
                    username=None, ssl=False):
@@ -59,7 +83,7 @@ class Pyperbot:
             self.clients[message.server].send(message)
             if 0 and message.command == "PRIVMSG":  # TODO: buffers
                 temp = message.copy()
-                temp.nick = self.servers[message.server].nick
+                temp.nick = self.clients[message.server].nick
                 self.message_buffer[message.server][message.params].appendleft(temp)
         else:
             raise Exception("no such server: " + message.server)
@@ -89,7 +113,6 @@ class Pyperbot:
                 found = True
             if not found:
                 raise Exception("no such plugin to load or file did not contain a plugin")
-        print(handlers)
         return handlers
 
     def load_plugin(self, plugin):
@@ -104,246 +127,188 @@ class Pyperbot:
             if hasattr(func, "_regexes"):
                 pass
             if hasattr(func, "_commands"):
-                print("found a command!" + name)
                 for word in func._commands:
                     self.commands[word] = func
 
+    async def parse_msg(self, msg):
+        try:
+            x = total.parseString(msg.text[1:], parseAll=True)
+            print(msg.text[1:], "->", x)
+            await self.run_parse(x, msg, callback=self.send)
+        except ParseException as e:
+            self.send(msg.reply(" " * (e.col + 1) + "^"))
+            self.send(msg.reply(str(e.__class__.__name__) + ": " + e.msg))
+        except envnotdef as e:
+            self.send(msg.reply(" " * (e.loc + 1) + "^"))
+            self.send(msg.reply(str(e.ex) + " is not defined"))
+        except funcnotdef as e:
+            self.send(msg.reply(" " * (e.loc + 1) + "^"))
+            self.send(msg.reply("function " + str(e.ex) + " is not defined"))
+        except piperror as e:
+            self.send(msg.reply(" " * 1 + e.errstr))
+            for i, ex in enumerate(e.exs):
+                self.send(msg.reply(
+                    ((str(i + 1) + ": ") if len(e.exs) > 1 else "") + str(ex.__class__.__name__) + ": " + str(ex)))
+                try:
+                    raise ex
+                except Exception:
+                    traceback.print_exc()
+        except toomany as e:
+            self.send(msg.reply("Error: Resulting call would be too long!"))
+        except missingarg as e:
+            self.send(msg.reply(" " * (e.loc + 1) + "^"))
+            self.send(msg.reply("MissingArg: " + e.ex))
+        except Exception as e:
+            # self.send(msg.reply(" " * (e.col + 1) + "^"))
+            self.send(msg.reply(str(e.__class__.__name__) + ": " + str(e)))
 
-    def parse_command(self, msg, first=False, offset = 0, checkonly=False):
-        if first:
-            text = msg.text[1:]
-        else:
-            text = msg.text
+    async def run_parse(self, tree, msg, callback=None, offset=0):
+        y, off, x = tree[0]
+        if y == "pipeline":
+            return await self.run_pipeline(x, msg, callback=callback, offset=offset)
+        elif y == "assignment":
+            (_, _, [target]), (_, _, x) = x
+            res = await self.run_pipeline(x, msg, offset=offset)
 
+            if res is not None and len(res) == 1:
+                x = res[0].data
+            else:
+                x = list(map(lambda m: m.data, res))
 
-
-
-        def get_from_env(thing, loc):
             try:
-                path = thing.split(".")
+                path = target.split(".")
                 path.reverse()
-                print(path)
+                temp = self.env
+                while len(path) > 1:
+                    temp = temp[path.pop()]
+                temp[path.pop()] = x
+                return x
+            except KeyError as e:
+                raise envnotdef(offset, e)
+
+        elif y == "alias":
+            (_, _, target), (_, _, pipeline) = x
+            self.aliases[target] = pipeline
+
+    async def run_pipeline(self, pipeline, initial, callback=None, offset=0):
+        cmds_n_args = []
+        locs = []
+        async for (func, args, text, start) in self.funcs_n_args(pipeline, initial, offset=offset):
+            cmds_n_args.append((func, initial.to_args(line=" ".join(map(str, text)), args=args)))
+            locs.append(start)
+        x = self.PipeManager.run_pipe(
+            cmds_n_args, loop=None,
+            callback=callback)
+        res, x = await x
+        errstr = ""
+        errs = []
+        for err, location in zip(x, locs):
+            if isinstance(err, SyntaxError):
+                errstr += " " * (location + err.offset - len(errstr)) + "^"
+                errs.append(err)
+            elif isinstance(err, Exception):
+                errstr += " " * (location - len(errstr)) + "^"
+                errs.append(err)
+        if errstr:
+            errstr = " " + errstr
+            raise piperror(errstr, errs)
+        return res
+
+    async def do_arg(self, arg, initial, offset=0, preargs=[]):
+        arg_type, loc, s = arg
+        if arg_type in ["t_nakedvar", "t_bracketvar"]:
+            try:
+                path = s.split(".")
+                path.reverse()
                 x = self.env
                 while path:
                     x = x[path.pop()]
-                return x
+                return [[x, str(x), loc]]
             except KeyError as e:
-                print("err", loc)
-                raise envnotdef(loc+offset, e)
-
-
-
-
-        def str_insert(orig, inp, start, end):
-            return orig[:start] + " ".join(map(str, inp)) + orig[end:]
-
-
-
-        t_word = pyp.Regex(r'([^ |\'\"\\]|\\\\)+')
-        t_bracketvar = pyp.nestedExpr('${', '}', content=pyp.CharsNotIn("{}"),
-                                      ignoreExpr=pyp.quotedString ^ pyp.nestedExpr('{', '}'))\
-
-        t_nakedvar = pyp.Suppress('$') + pyp.CharsNotIn(" )([]:+=")
-        cmd_buffer = pyp.Regex(r"\S*\^(\^+|\d+)?") + pyp.WordEnd()
-        cmd_buffer.addParseAction(lambda s, l, t: "previous message: " + t[0], callDuringTry=False)
-        t_tilde = pyp.Suppress('~') + t_word
-        t_tilde.addParseAction(lambda s, l, t: "home of " + t[0], callDuringTry=False)
-        singlequote = pyp.QuotedString(quoteChar="'", escChar="\\")
-        doublequote = pyp.QuotedString(quoteChar='"', escChar='\\')
-        backquote = pyp.QuotedString(quoteChar='`', escChar='\\')
-
-        inners = pyp.MatchFirst((backquote ^ doublequote, t_bracketvar, t_nakedvar, t_tilde))
-        t_var = (t_bracketvar | t_nakedvar)
-        escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`')))
-        cmd_arg = pyp.MatchFirst((cmd_buffer, t_var, singlequote, doublequote, backquote, escaped, t_tilde, t_word))
-        cmd_name = t_word("cmd_name").setParseAction(lambda locn, tokens: (locn, tokens[0]))
-        simple_command = pyp.Group(cmd_name + pyp.Group(pyp.ZeroOrMore(cmd_arg))("args"))
-        pipeline = pyp.Group(pyp.delimitedList(simple_command, '|'))("pipeline") # .addParseAction(lambda s, l, t: [x for x in t])
-        pipeline2 = pyp.Group(pyp.delimitedList(simple_command, '|'))("pipeline2") # .addParseAction(lambda s, l, t: [x for x in t])
-        t_assignment_word = t_word.setResultsName('target')
-        assignment = t_assignment_word + pyp.Suppress('=') + pipeline.copy()
-
-
-        def test(s, l, t):
-            print("test!")
-            print(s, l, t)
-            print(t[0])
-            print(t[0][0])
-            print([(func, args) for func, args in t[0]])
-            try:
-                temp = asyncio.new_event_loop()
-                temp.run_until_complete(self.PipeManager.run_pipe(
-                    [(self.commands[func], msg.to_args(text=" ".join(args), args=args)) for func, args in t[0]],
-                    loop=temp,
-                    callback=self.send))
-                temp.stop()
-            except Exception as e:
-                print("fuckd")
-                print(e)
-            return t
-
-        
-
-        def funcs_n_args(t, first=True, baz=None):
-            a = []
-            locs = []
-            for (loc, func), args in t:
-                print((loc, func), args, t, first)
-                print(loc)
-                print(func)
-                print(args)
-                print(t)
-                if func in self.commands:
-                    a.append((self.commands[func], msg.to_args(text=" ".join(map(str, args)), args=[x for x in args])))
-                    print("adding loc: ", loc)
-                    locs.append(loc)
-                elif func in self.aliases:
-                    try:
-                        first = True
-                        for func2, args2 in funcs_n_args(pipeline.parseString(self.aliases[func], parseAll=True)[0], first=False, baz=loc)[0]:
-                            print(func2, args2)
-                            if first:
-                                args2.args += [x for x in args]
-                                first = False
-                            a.append((func2, args2))
-                            locs.append(loc)
-                            print(baz)
-                    except envnotdef as e:
-                        if first:
-                            self.send(msg.reply(" "*(loc+offset)+"^"))
-                            self.send(msg.reply(str(e.ex)+" is not defined"))
-                        raise Exception
-                else:
-                    print("loc", loc)
-                    self.send(msg.reply(" "*(loc+offset)+"^"))
-                    self.send(msg.reply("UnKnown Command: " + func))
-                    raise Exception
-                first_func = False
-            return a, locs
-
-
-        def pipaa(s, l, t, send=True):
-            temp = asyncio.new_event_loop()
-            cmds_n_args, locs = funcs_n_args(t[0])#[(self.commands[func], msg.to_args(text=" ".join(map(str, args)), args=args)) for (loc, func), args in t[0]]
-            print(cmds_n_args, locs)
-            x = self.PipeManager.run_pipe(
-                cmds_n_args, loop=temp,
-                callback=self.send if first and send else None)
-            res, x = temp.run_until_complete(x)
-
-            errstr = ""
-            errs = []
-            for err, location in zip(x, locs):
-                if isinstance(err, Exception):
-                    print(err, location)
-                    traceback.print_exc()
-                    errstr += " "*(location-len(errstr)+1)+"^"
-                    errs.append(err)
-
-            if errstr:
-                self.send(msg.reply(errstr))
-                for i, e in enumerate(errs):
-                    self.send(msg.reply(((str(i+1)+": ") if len(errs) > 1 else "") +str(e.__class__.__name__) + ": " + str(e)))
-                raise e
-
-
-            if res:
-                return list(map(lambda m: m.data, res))
-
-        def ass(s, l, t):
-            print("assignment", t[0], " = ", t[1])
-            self.env[t[0]] = t[1]
-            return t[1]
-
-        def assign(s, l, t):
-            res = pipaa(s, l, [t[1]], send=False)
-
-            if res is not None and len(res) == 0:
-                x = res[0]
-            else:
-                x = res
-
-            self.env[t[0]] = x
-
-            print("assignment", t[0], " = ", x)
-            return x
-
-        def aliaser(s, l, t):
-            print(s, l, t)
-            try:
-                self.parse_command(msg.reply(t[1]), offset=offset + l, checkonly=True) # pipeline.parseString(t[1], parseAll=True)
-            except pyp.ParseException:
-                raise
-            except Exception: # if this happened then that is okay
-                pass
-            self.aliases[t[0]] = t[1].strip()
-
-
-        inners = pyp.MatchFirst((backquote, t_var, t_tilde))
-
-        def doinner(s, l, t):
-            inp = t[0]
-            for x in reversed(list(inners.scanString(inp))):
+                raise envnotdef(loc + offset, e)
+        elif arg_type == "backquote":
+            res = await self.run_parse(total.parseString(s, parseAll=True), initial, offset=loc + offset)
+            x = list(map(lambda m: m.data, res))
+            xs = list(map(lambda m: str(m.data), res))
+            return [[x, xs, loc]]
+        elif arg_type == "doublequote":
+            for x in reversed(list(inners.scanString(s))):
                 toks, start, end = x
-                inp = str_insert(inp, toks, start, end)
+                b = " ".join(
+                    str(b) for b, _, _ in await self.do_arg(toks[0], initial, offset=offset + loc, preargs=preargs))
+                s = s[:start] + str(b) + s[end:]
+            return [[s, '"' + s + '"', loc]]
+        elif arg_type == "singlequote":
+            return [[s, "'" + s + "'", loc]]
+        elif arg_type == "homedir":
+            pass
+        elif arg_type == "starred":
+            [[a, b, loc]] = await self.do_arg(s, initial, offset=offset + loc)
+            return [[n, str(n), loc] for n in a]
+        elif arg_type == "back_index":
+            index = int(s.index)
+            try:
+                return [[preargs[index], str(preargs[index]), loc]]
+            except IndexError as e:
+                print("fuck", preargs, index)
+                raise missingarg(loc, "missing arg no:%s" % index)
+        elif arg_type == "back_range":
 
-            return inp
+            # if not preargs:
+            #     raise Exception("this pipeline takes a parameter!")
+            print("range", s)
+            start = None if s.start is None else int(s.start)
+            stop = None if s.stop is None else int(s.stop)
+            step = None if s.step is None else int(s.step)
+            try:
+                # got a range
 
-        # def backers(s, l, t):
-        #     try:
-        #         self.parse_command(msg.reply(t[0]), offset=offset + l)
-        #     except envnotdef as e:
-        #         if first:
-        #             self.send(msg.reply(" "*(e.col+offset) + "^"))
-        #             self.send(msg.reply(str(e.__class__.__name__) + ": " + e.msg))
-        #         raise
+                # if a > len(preargs) or b > len(preargs):
+                #     raise IndexError("This pipline needs atleast %s params!" % s[1])  #TODO make this use a custom error with location
+                return [[q, str(q), loc] for q in preargs[slice(start, stop, step)]]
+            except IndexError as e:
+                raise missingarg(loc, "missing arg no:%s" % start)
+        else:
+            return [[s, s, loc]]
 
+    async def funcs_n_args(self, pipeline, initial, preargs=[], offset=0, count=0):
+        count = count
+        for _, _, [(_, start, cmd_name), *cmd_args] in pipeline:
+            if count > 50:
+                raise toomany()
 
+            args = []
+            text = []
 
-        backquote.addParseAction(lambda s, l, t: self.parse_command(msg.reply(t[0]), offset=offset + l + 1, checkonly=True), callDuringTry=False)
-        t_alias_word = t_word("alias_target")
-        alias = pyp.Suppress(pyp.Literal("alias")) + t_alias_word + pyp.Suppress('=') + pyp.restOfLine()
-        alias.addParseAction(aliaser)
-        pipeline2 = pipeline.copy()
-        total = (alias | assignment | pipeline2)
+            argers = [self.do_arg(x, initial, offset, preargs) for x in cmd_args]
+            for shit in await asyncio.gather(*argers):
+                for arg, s, loc in shit:
+                    args.append(arg)
+                    text.append(s)
 
-        try:
-            total.parseString(text, parseAll=True)
-        except pyp.ParseException as e:
-            if first:
-                self.send(msg.reply(" "*(e.col+offset) + "^"))
-                self.send(msg.reply(str(e.__class__.__name__) + ": " + e.msg))
-            raise
-
-        if checkonly:
-            return
-        backquote.setParseAction(lambda s, l, t: self.parse_command(msg.reply(t[0]), offset=offset + l + 1),
-                                 callDuringTry=False)
-        t_nakedvar.addParseAction(lambda s, l, t: get_from_env(t[0], l), callDuringTry=False)
-        t_bracketvar.addParseAction(lambda s, l, t: get_from_env(t[0][0], l), callDuringTry=False)
-        doublequote.addParseAction(doinner, callDuringTry=False)
-        assignment.addParseAction(assign, callDuringTry=False)
-        pipeline2.addParseAction(pipaa, callDuringTry=False)
-        try:
-            x = total.parseString(text, parseAll=True)
-        except envnotdef as e:
-            if first:
-                self.send(msg.reply(" "*(e.loc+offset) + "^"))
-                self.send(msg.reply(str(e.ex)+" is not defined"))
+            if cmd_name in self.commands:
+                func = self.commands[cmd_name]
+                yield (func, args, text, start + offset)
+                count += 1
+            elif cmd_name in self.aliases:
+                first = True
+                try:
+                    async for func_, args_, text_, _ in self.funcs_n_args(self.aliases[cmd_name], initial, preargs=args,
+                                                                          offset=offset + start, count=count + 1):
+                        yield (func_, args_, text_, start + offset)
+                        count += 1
+                except missingarg as e:
+                    raise missingarg(e.loc, e.ex + " for alias " + cmd_name)
             else:
-                print("got an envdef in stack")
-            raise
-        print(msg.text, "->", x)
-        return x
-
+                raise funcnotdef(offset + start, cmd_name)
 
     def handle_command(self, msg):
         try:
-            first = msg.text[1:].split()[0].split("|")[0]
-            if first in self.aliases or first in self.commands:
+            # first = msg.text[1:].split()[0].split("|")[0]
+            # if first in self.aliases or first in self.commands:
                 self.parse_command(msg, first=True, offset=1)
         except pyp.ParseException:
-            pass
+            traceback.print_exc()
         except envnotdef as e:
             print("env error escaped!")
         except Exception as e:
@@ -363,13 +328,32 @@ def throw(e):
     raise e
 
 if __name__ == "__main__":
+    from logging import Handler
+
+
+    class shitHandler(Handler):
+        """
+        A handler class which writes logging records, appropriately formatted,
+        to a stream. Note that this class does not close the stream, as
+        sys.stdout or sys.stderr may be used.
+        """
+
+        def __init__(self):
+            Handler.__init__(self)
+
+        def flush(self):
+            pass
+
+        def emit(self, record):
+            print(self.format(record))
+
     log = logging.getLogger("pyperbot")
     log.setLevel(logging.DEBUG)
 
-    ch = logging.StreamHandler()
+    ch = shitHandler()
 
     ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(message)s')
 
     # add formatter to ch
     ch.setFormatter(formatter)

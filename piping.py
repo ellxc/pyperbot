@@ -1,11 +1,9 @@
-from concurrent.futures import Future
-from multiprocessing import Process
-import _thread
-import ctypes
-from util import async_pipe, PipeClosed
+
 import asyncio
-from asyncio.tasks import FIRST_EXCEPTION
 from contextlib import contextmanager
+
+from util import async_pipe, PipeClosed
+
 
 @contextmanager
 def manage_pipes(*pipes, err=True):
@@ -37,36 +35,9 @@ class PipeManager:
 
     @staticmethod
     def run_future(func, futr, *args, **kwargs):
-        print("running", func.__name__, args, kwargs)
         return futr.set_result(func(*args, **kwargs))
 
-    async def schedthreadedfunc(self, func, *args, timeout=None, **kwargs):
-        futr = Future()
-        t = _thread.start_new_thread(self.run_future, (func, futr) + args, kwargs)
-        if timeout is None:
-            await asyncio.wrap_future(futr, loop=self.loop)
-        else:
-            try:
-                await asyncio.wait_for(asyncio.wrap_future(futr, loop=self.loop), timeout=timeout, loop=self.loop)
-            except asyncio.TimeoutError:
-                res = ctypes.pythonapi.PyThreadState_SetAsyncExc(t,
-                                                                 ctypes.py_object(TimeoutError))
-                raise TimeoutError
-        return futr.result()
 
-    async def schedproccedfunc(self, func, *args, timeout=None, **kwargs):
-        futr = Future()
-        p = Process(target=self.run_future, args=((func, futr) + args), kwargs=kwargs)
-        p.start()
-        if timeout is None:
-            await asyncio.wrap_future(futr, loop=self.loop)
-        else:
-            try:
-                await asyncio.wait_for(asyncio.wrap_future(futr, loop=self.loop), timeout=timeout, loop=self.loop)
-            except asyncio.TimeoutError:
-                p.terminate()
-                raise TimeoutError
-        return futr.result()
 
     @staticmethod
     async def _stdout(inpipe, callback, out):
@@ -74,7 +45,6 @@ class PipeManager:
             while 1:
                 x = await inpipe.recv()
                 out.append(x)
-                print("adding ", x, "to result")
                 if callback is not None:
                     callback(x)
         except PipeClosed:
@@ -102,7 +72,7 @@ class PipeManager:
                     pass
         return prnt
 
-    async def run_pipe(self, cmds_args, callback=None, collector=lambda x: x, err_callback=print, timeout=15, loop=None):
+    async def run_pipe(self, cmds_args, callback=None, collector=lambda x: x, err_callback=None, timeout=15, loop=None):
 
         # dispatcher = self.schedthreadedfunc  # lambda func, *args, **kwargs: loop.run_in_executor(exe, functools.partial(func, *args, **kwargs), )
         # heavydispatcher = self.schedproccedfunc
@@ -112,7 +82,6 @@ class PipeManager:
 
         next, first = async_pipe()
         for func, args in cmds_args:
-            print(args)
             next3, next2 = async_pipe(loop=loop)
             tasks.append(asyncio.ensure_future(func(args, next, next2),loop=loop if loop is not None else self.loop))
             next = next3
@@ -130,4 +99,4 @@ class PipeManager:
             return out, x
         except asyncio.TimeoutError:
             _.cancel()
-            raise TimeoutError
+            raise TimeoutError()

@@ -1,15 +1,15 @@
-import datetime
 import copy
 import re
 
+import datetime
 
 SPLIT_REGEX = r"^(?::(?:(?:(?P<nick>\S+)!)?(?:(?P<user>\S+)@)?(?P<domain>\S+) +))?" \
               r"(?P<command>\S+)(?: +(?!:)(?P<params>.+?))?(?: *:(?:\x01(?P<ctcp>\w+) )?(?P<text>.+?))?\x01?$"
 
 
 class Message:
-    def __init__(self, server=None, nick="", user="", domain="", command="", params="", ctcp="", text=None,
-                 timestamp=None, groups=None, data=None, args=None):
+    def __init__(self, server=None, nick="", user="", domain="", command="", params="", ctcp="",
+                 timestamp=None, groups=None, text=None, line=None, data=None, args=None):
         self.server = server
         self.nick = nick
         self.user = user
@@ -18,17 +18,20 @@ class Message:
         self.params = params
         self.ctcp = ctcp
         self._text = None
-        self.text = text
         self.timestamp = timestamp or datetime.datetime.now()
         self.groups = groups
-        self.data = data
+
         self.args = args
+        self.line = line
+        self.data = data
+        self.text = text
+        self.str_fn = str
 
     @property
     def text(self):
         if self._text is None:
             if self.data is not None:
-                return str(self.data)
+                return self.str_fn(self.data)
             return ""
         return self._text
 
@@ -70,10 +73,10 @@ class Message:
         text += self.text.rstrip("\n")
         return text
 
-    def to_args(self, text, args):
+    def to_args(self, line, args):
         return Message(server=self.server, nick=self.nick, command=self.command,
                        domain=self.domain, ctcp=self.ctcp,
-                       groups=self.groups, user=self.user, params=self.params, text=text, args=args)
+                       groups=self.groups, user=self.user, params=self.params, line=line, args=args)
 
     def reply(self, data=None, text=None, args=None, ctcp=None, command=None):
         return Message(server=self.server, nick=self.nick, command=self.command if command is None else command,
