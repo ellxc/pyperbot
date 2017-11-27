@@ -1,9 +1,12 @@
 import _thread
 import asyncio
 import collections
+import copy
 import ctypes
 from asyncio import events, coroutine, locks, sleep
+from collections import MutableMapping
 from concurrent.futures import Future, ProcessPoolExecutor
+from logging import Handler
 
 
 class PipeClosed(Exception):
@@ -20,6 +23,30 @@ class ItemAdded(Exception):
 
 def run_future(func, futr, *args, **kwargs):
     return futr.set_result(func(*args, **kwargs))
+
+
+async def schedthreadedgen(genfunc, *args, timout=None, **kwargs):
+    print(args)
+    outpipe, inpipe = async_pipe()
+
+    def runt():
+        print("runing gen")
+        for x in genfunc(*args, **kwargs):
+            print("got x:", x)
+            inpipe.send(x)
+        inpipe.close()
+
+    t = _thread.start_new_thread(runt, tuple())
+    try:
+        while 1:
+            print("running recv")
+            b = await outpipe.recv()
+            print("got b:", b)
+            yield b
+    except PipeClosed:
+        pass
+
+
 
 
 async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
@@ -65,22 +92,7 @@ def wait_for(future, seconds):
     future.set_result(None)
 
 
-async def aliashelper(args, inpipe, outpipe):
-    called = False
-    try:
-        while 1:
-            x = await inpipe.recv()
-            called = True
-            if args.args:
-                outpipe.send(x.reply(text=args.text.format(x.data), data=[args.data, x.data]))
-            else:
-                outpipe.send(x)
-    except PipeClosed:
-        if not called:
-            outpipe.send(args)
-    finally:
-        outpipe.close()
-        inpipe.close()
+
 
 
 class WaitableQueue:
@@ -223,3 +235,134 @@ class LeftShim:
 def async_pipe(loop=None):
     a = WaitableQueue(loop=loop)
     return LeftShim(a), RightShim(a)
+
+
+class MutableNameSpace(MutableMapping):
+    def __init__(self, data=None, all=False):
+        if data is None:
+            data = {}
+        self._data = data
+        self._all = all
+
+    def __repr__(self):
+        ret = "{"
+        ret += ", ".join(["{}: {}".format(repr(key), repr(val)) for key, val in self._data.items()])
+        ret += "}"
+        return ret
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __delitem__(self, key):
+        del self._data[key]
+
+    def __delattr__(self, item):
+        del self._data[item]
+
+    def setdefault(self, key, default=None):
+        if key in self._data:
+            return self._data[key]
+        else:
+            self._data[key] = default
+
+    def copy(self):
+        return MutableNameSpace(self._data.copy(), all=self._all)
+
+    def __getattr__(self, item):
+        if item in self._data:
+            ret = self._data[item]
+            if isinstance(ret, MutableMapping) and not isinstance(ret, MutableNameSpace):
+                return MutableNameSpace(ret, all=self._all)
+            else:
+                return ret
+        else:
+            if self._all:
+                self._data[item] = MutableNameSpace({}, all=self._all)
+                return self._data[item]
+            else:
+                raise KeyError('%s' % item)
+
+    def __setattr__(self, key, value):
+        if key.startswith("_"):
+            object.__setattr__(self, key, value)
+        elif isinstance(value, dict):
+            return self._data.__setitem__(key, MutableNameSpace(value, all=self._all))
+        else:
+            return self._data.__setitem__(key, value)
+
+    def __contains__(self, item):
+        return item in self._data
+
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
+    def __setitem__(self, key, value):
+        return self.__setattr__(key, value)
+
+    def __setstate__(self, vals):
+        self._data = vals["data"]
+        self._all = vals["all"]
+
+    def __getstate__(self):
+        return {
+            "data": self._data,
+            "all" : self._all,
+        }
+
+    def __deepcopy__(self, memodict={}):
+        result = self.__class__()
+        memodict[id(self)] = result
+        result.__init__(copy.deepcopy(self._data, memo=memodict), self._all)
+        return result
+
+
+class missingarg(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+    def __str__(self):
+        return self.ex
+
+
+class envnotdef(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+
+class CommandNotDefined(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+    def __str__(self):
+        return repr(self.ex)
+
+
+class toomany(Exception):
+    pass
+
+
+class aString(str):
+    pass
+
+
+class shitHandler(Handler):
+    """
+    A handler class which writes logging records, appropriately formatted,
+    to a stream. Note that this class does not close the stream, as
+    sys.stdout or sys.stderr may be used.
+    """
+
+    def __init__(self):
+        Handler.__init__(self)
+
+    def flush(self):
+        pass
+
+    def emit(self, record):
+        print(self.format(record))

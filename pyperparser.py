@@ -18,8 +18,9 @@ t_tilde.addParseAction(lambda l, t: ("homedir", l, t[0]))
 singlequote = pyp.sglQuotedString.addParseAction(lambda l, t: ("singlequote", l, t[0][1:-1]))
 doublequote = pyp.dblQuotedString.addParseAction(lambda l, t: ("doublequote", l, t[0][1:-1]))
 backquote = pyp.QuotedString(quoteChar='`', escChar='\\').addParseAction(lambda l, t: ("backquote", l, t[0]))
-starred = pyp.Suppress(pyp.Literal("*")) + pyp.MatchFirst(
-    (t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(lambda l, t: ("starred", l, t[0]))
+starred = pyp.Forward()
+starred << (pyp.Suppress(pyp.Literal("*")) + pyp.MatchFirst(
+    (starred, t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(lambda l, t: ("starred", l, t[0])))
 escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`'))).addParseAction(lambda l, t: ("escaped", l, t[0]))
 cmd_arg << pyp.MatchFirst((t_back_range, t_back_index, starred, cmd_buffer, t_bracketvar, t_nakedvar, singlequote,
                            doublequote, backquote, escaped, t_tilde, t_word))
@@ -33,7 +34,7 @@ t_assignment_target = pyp.Regex(r'([^ |\'\"\\]|\\\\)+').addParseAction(
 assignment = t_assignment_target + pyp.Suppress('=') + pipeline
 assignment.addParseAction(lambda l, t: ("assignment", l, [x for x in t]))
 t_alias_word = pyp.Regex(r'([^ |\'\"\\]|\\\\)+').addParseAction(lambda l, t: ("alias_target", l, t[0]))
-alias = pyp.Suppress(pyp.Keyword("alias")) + t_alias_word + pyp.Suppress('=') + pipeline
+alias = pyp.Suppress(pyp.Keyword("alias")) + t_alias_word + pyp.Suppress('=') + pyp.originalTextFor(pipeline)
 alias.addParseAction(lambda l, t: ("alias", l, [x for x in t]))
 inners = pyp.MatchFirst(
     (t_back_range, t_back_index, starred, backquote ^ doublequote, t_bracketvar, t_nakedvar, t_tilde))

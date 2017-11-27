@@ -9,7 +9,7 @@ SPLIT_REGEX = r"^(?::(?:(?:(?P<nick>\S+)!)?(?:(?P<user>\S+)@)?(?P<domain>\S+) +)
 
 class Message:
     def __init__(self, server=None, nick="", user="", domain="", command="", params="", ctcp="",
-                 timestamp=None, groups=None, text=None, line=None, data=None, args=None):
+                 timestamp=None, groups=None, text=None, line=None, data=None, args=None, str_fn=None):
         self.server = server
         self.nick = nick
         self.user = user
@@ -19,13 +19,10 @@ class Message:
         self.ctcp = ctcp
         self._text = None
         self.timestamp = timestamp or datetime.datetime.now()
-        self.groups = groups
 
-        self.args = args
-        self.line = line
         self.data = data
         self.text = text
-        self.str_fn = str
+        self.str_fn = str_fn if str_fn is not None else lambda x: x if isinstance(x, str) else" ".join(map(str, x))
 
     @property
     def text(self):
@@ -73,15 +70,10 @@ class Message:
         text += self.text.rstrip("\n")
         return text
 
-    def to_args(self, line, args):
-        return Message(server=self.server, nick=self.nick, command=self.command,
-                       domain=self.domain, ctcp=self.ctcp,
-                       groups=self.groups, user=self.user, params=self.params, line=line, args=args)
-
-    def reply(self, data=None, text=None, args=None, ctcp=None, command=None):
+    def reply(self, data=None, text=None, ctcp=None, command=None, str_fn=None):
         return Message(server=self.server, nick=self.nick, command=self.command if command is None else command,
                        domain=self.domain, ctcp=self.ctcp if ctcp is None else ctcp,
-                       groups=self.groups, user=self.user, params=self.params, text=text, data=data, args=args)
+                       user=self.user, params=self.params, text=text, data=data, str_fn=str_fn)
 
     def copy(self):
         return copy.copy(self)
@@ -91,20 +83,13 @@ class Message:
                or self.timestamp < other.timestamp
 
     def __str__(self):
-        return "{}: {} {} {}:{}".\
-            format(
+        return "{}: {} {} {}:{}".format(
                 self.server,
-                (
-                    " <" +
-                        self.nick +
-                            "(" +
-                                self.user + ("@" if self.user else "") + self.domain +
-                            ")" +
-                    ">"
-                ) if self.domain else "",
+            (" <" + self.nick + "(" + self.user + (
+                "@" if self.user else "") + self.domain + ")" + ">") if self.domain else "",
                 "CTCP:"+self.ctcp[1:] if self.ctcp else self.command,
                 self.params,
-                bytes(self.text, "utf-8")[:550].decode()
+            bytes(self.text, "utf-8")[:550].decode(),
             )
 
     @staticmethod

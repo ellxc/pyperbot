@@ -1,8 +1,7 @@
 import functools
-import getopt
 import inspect
-import re
-import shlex
+
+import crontab
 
 from util import PipeClosed
 
@@ -11,16 +10,43 @@ def plugin(_class):
     _class._plugin = True
     _class._name = _class.__name__
     if _class.__init__ == object.__init__:
-        _class.__init__ = lambda self, bot: setattr(self, "bot", bot)
+        _class.__init__ = lambda self, bot, config: setattr(self, "bot", bot)
     return _class
 
+
+def onload(func):
+    func._onload = True
+    return func
+
+
+def unload(func):
+    func._unload = True
+    return func
+
+
+def sync(func):
+    func._sync = True
+    return func
+
+
+def env(name):
+    def wrapper(func):
+        if hasattr(func, '_envs'):
+            func._envs.append(name)
+            return func
+        func._envs = [name]
+        return func
+
+    if type(name) is not str:
+        raise Exception("invalid env name")
+    return wrapper
 
 def cron(cr=None):
     def wrapper(func):
         if hasattr(func, '_crons'):
-            func._crons.append(cr)
+            func._crons.append(crontab.CronTab(cr))
             return func
-        func._crons = [cr]
+        func._crons = [crontab.CronTab(cr)]
         return func
     if type(cr) is not str:
         raise Exception("incorrect or no cron specified")
@@ -54,14 +80,30 @@ def trigger(trigger_=None):
 def regex(reg,flags=0):
     def wrapper(func):
         if hasattr(func, '_regexes'):
-            func._regexes.append(re.compile(reg, flags))
+            func._regexes.append(reg)
             return func
-        func._regexes = [re.compile(reg, flags)]
+        func._regexes = [reg]
         return func
 
     if type(reg) is not str:
         raise Exception("incorrect or no regex specified")
     return wrapper
+
+
+def outputfilter(priority=None):
+    def wrapper(_func):
+        if inspect.isfunction(priority):
+            pr = 0
+        else:
+            pr = priority
+        _func._outputfilter = pr
+        return _func
+
+    if inspect.isfunction(priority):
+        return wrapper(priority)
+    else:
+        return wrapper
+
 
 def classcommand(word = None):
     def wrapper(clas):
@@ -176,12 +218,61 @@ def complexcommand(word=None):
     else:
         return wrapper
 
-def command(word=None): #multilevel wrapper drifting
+
+def wrapinner(func, admin=False):
+    sig = inspect.signature(func)
+    # params = len(sig.parameters)
+    #
+    # print(sig.parameters)
+    #
+    # if len(sig.parameters) == 3:
+
+
+    if inspect.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def outfunc(this, *_, out):
+            y = await func(this, *_)
+            if y is not None:
+                out.send(y)
+    elif inspect.isasyncgenfunction(func):
+        @functools.wraps(func)
+        async def outfunc(this, *_, out):
+            print("outfunc", _)
+            async for z in func(this, *_):
+                out.send(z)
+    elif inspect.isgeneratorfunction(func):
+        @functools.wraps(func)
+        async def outfunc(this, *_, out):
+            y = func(this, *_)
+            for z in y:
+                out.send(z)
+    else:
+        @functools.wraps(func)
+        async def outfunc(this, *_, out):
+            y = func(this, *_)
+            if y is not None:
+                out.send(y)
+
+    if admin:
+        async def final(this, *args, out):
+            if await this.bot.is_authed(args[0]):
+                return await outfunc(this, *args, out=out)
+            else:
+                raise Exception("you are not an admin!")
+    else:
+        final = outfunc
+
+    return final
+
+
+def command(word=None, admin=False):  # multilevel wrapper drifting
 
     def wrapper(_func):
 
         if inspect.isfunction(word):
             name = word.__name__
+        elif word is None:
+            name = _func.__name__
         else:
             name = word
 
@@ -190,46 +281,12 @@ def command(word=None): #multilevel wrapper drifting
             return _func
         _func._commands = [name]
 
-        if inspect.iscoroutinefunction(_func):
-            @functools.wraps(_func)
-            async def outfunc(this, args, out):
-                try:
-                    y = await _func(this, args)
-                    if y is not None:
-                        out.send(y)
-                except PipeClosed:
-                    pass
-        elif inspect.isasyncgenfunction(_func):
-            @functools.wraps(_func)
-            async def outfunc(this, args, out):
-                try:
-                    async for z in _func(this, args):
-                        out.send(z)
-                except PipeClosed:
-                    pass
-        elif inspect.isgeneratorfunction(_func):
-            @functools.wraps(_func)
-            async def outfunc(this, args, out):
-                try:
-                    y = _func(this, args)
-                    for z in y:
-                        out.send(z)
-                except PipeClosed:
-                    pass
-        else:
-            @functools.wraps(_func)
-            async def outfunc(this, args, out):
-                try:
-                    y = _func(this, args)
-                    if y is not None:
-                        out.send(y)
-                except PipeClosed:
-                    pass
+        outfunc = wrapinner(_func, admin=admin)
 
         @functools.wraps(_func)
         async def inner(this, args, inpipe, outpipe):
             try:
-                await outfunc(this, args, outpipe)
+                await outfunc(this, args, out=outpipe)
             except PipeClosed:
                 pass  # pipe ended
             except Exception as e:
@@ -258,53 +315,16 @@ def pipeinable_command(word = None):
             return _func
         _func._commands = [name]
 
-        sig = inspect.signature(_func)
-        params = len(sig.parameters)
-        inexpect = list(sig.parameters.values())[-1].annotation
-        outexpect = sig.return_annotation
-        expected_args = None
-        expected_longargs = []
-        if params == 2:
-            __func = lambda _this, _args, _x: _func(_this, _x)
-        else:
-            __func = _func
-
-            temp = list(sig.parameters.values())[0].annotation
-            if isinstance(temp, tuple):
-                expected_args, expected_longargs = temp
-            elif isinstance(temp, str):
-                expected_args = temp
-
-        if inspect.isgeneratorfunction(_func):
-            @functools.wraps(_func)
-            def outfunc(this, x, args, out):
-                y = __func(this, args, x)
-                for z in y:
-                    if outexpect != inspect._empty and not isinstance(z, outexpect):
-                        raise ValueError("unexpected output, expected " + str(outexpect) + " got " + str(type(z)))
-                    out.send(z)
-        else:
-            @functools.wraps(_func)
-            def outfunc(this, x, args, out):
-                y = __func(this, args, x)
-                if outexpect != inspect._empty and not isinstance(y, outexpect):
-                    raise ValueError("unexpected output, expected " + str(outexpect) + " got " + str(type(y)))
-                if y is not None:
-                    out.send(y)
+        outfunc = wrapinner(_func)
 
         @functools.wraps(_func)
         async def inner(this, args, inpipe, outpipe):
             ranonce = False
             try:
-                if expected_args is not None:
-                    args = getopt.gnu_getopt(shlex.split(args), expected_args, expected_longargs)
                 while 1:
                     x = await inpipe.recv()
                     ranonce = True
-                    if inexpect != inspect._empty and  not isinstance(x, inexpect):
-                        raise ValueError("unexpected input, expected " + str(inexpect) + " got " + str(type(x)))
-                 #   print("received", x, "performing func", _func.__name__)
-                    outfunc(this, x, args, outpipe)
+                    await outfunc(this, args, x, out=outpipe)
             except PipeClosed:
                 pass  # pipe ended
             except Exception as e:

@@ -1,59 +1,64 @@
-from time import sleep
 import asyncio
-from time import sleep
 from collections import ChainMap
+from time import sleep
+
 from piping import PipeClosed
-from pyperbot import funcnotdef
 from pyperparser import total
-from seval import parse_string
-from util import schedthreadedfunc, schedproccedfunc
-from wrappers import plugin, command, classcommand, pipeinable_command, complexcommand
+
+try:
+    from seval import parse_string
+except:
+    pass
+from util import schedthreadedfunc, schedproccedfunc, CommandNotDefined
+from wrappers import plugin, command, classcommand, pipeinable_command, complexcommand, regex, outputfilter, cron, \
+    unload, onload, env
+import urllib.parse
+import urllib.response
+import urllib.request
+import datetime
+import copy
 
 
 @plugin
 class foo():
-
     @pipeinable_command
     def strfrmt(self, args, each):
         # formats = len(list(string.Formatter().parse(args.line)))
-        return args.reply(args.line.format(*each.data))
+        return args.reply(text=args.text.format(*each.data))
 
     @pipeinable_command
     def strfrmt2(self, args, each):
-        yield args.reply(args.line.format(each.data))
-        yield args.reply(args.line.format(each.data))
+        yield args.reply(text=args.text.format(each.data))
+        yield args.reply(text=args.text.format(each.data))
 
     @command
-    def arger(self, each):
-        yield each.reply(each.args)
+    def arger(self, args):
+        yield args.reply(args.data)
 
     @command
     def two(self, msg):
-        return msg.reply(2)
+        return msg.reply([2])
 
     @command
     async def shitsleep(self, msg):
         await schedthreadedfunc(sleep, 5)
-        return msg.reply("I waited!")
+        return msg.reply(["I waited!"])
 
     @command
     async def shitsleep2(self, msg):
         await schedproccedfunc(sleep, 5)
-        return msg.reply("I waited!")
+        return msg.reply(["I waited!"])
 
     @command
     async def sleep(self, msg):
         await asyncio.sleep(2)
-        return msg.reply(2)
+        return msg.reply([2])
 
-    @command
-    async def sleep2(self, msg):
-        await asyncio.sleep(2)
-        yield msg.reply(2)
-        yield msg.reply(2)
+
 
     @pipeinable_command
-    def twice(self, args, msg):
+    async def twice(self, args, msg):
+        print("twice!", msg.data)
         yield msg
         yield msg
 
@@ -73,13 +78,20 @@ class foo():
 
 @plugin
 class bar():
-
-    def __init__(self, bot):
+    def __init__(self, bot, config):
         self.bot = bot
 
     @command
     def echo(self, msg):
-        return msg.reply(data=msg.args, text=" ".join(map(str, msg.args)))
+        return msg
+
+    @command(admin=True)
+    def admin(self, msg):
+        return msg.reply(["derp"])
+
+    @command(admin=True)
+    def exit(self, msg):
+        self.bot.loop.stop()
 
     @command
     def error(self, msg):
@@ -94,7 +106,7 @@ class bar():
         print("asd!!!", args.args)
         pass
 
-    async def funcs_n_args(self, pipeline, initial):
+    async def funcs_n_args(self, pipeline, initial, preargs=[]):
         # print("pipeline >>", pipeline)
         count = 0
         first = True
@@ -126,25 +138,25 @@ class bar():
                     yield (func_, initial.to_args(args=args_, line=" ".join(text_)))
                     count += 1
             else:
-                raise funcnotdef(0, cmd_name)
+                raise CommandNotDefined(0, cmd_name)
 
     @complexcommand
     async def xargs(self, args, inpipe, outpipe):
         try:
             strpipe = False
-            if args.args and args.args[0] == '-s':
+            if args.data and args.data[0] == '-s':
                 strpipe = True
-                pipeline = args.args[1]
+                pipeline = args.data[1]
             else:
-                pipeline = [args.args]
+                pipeline = [args.data]
             while 1:
                 x = await inpipe.recv()
                 print("got ", x)
                 if strpipe:
                     print("new style")
-                    parse = total.parseString(pipeline.format(*x.data))
+                    parse = total.parseString(pipeline)
                     print(parse)
-                    await self.bot.run_parse(parse, x, callback=outpipe.send)
+                    await self.bot.run_parse(parse, x, callback=outpipe.send, preargs=x.data)
                 else:
                     print("old style")
                     temp = []
@@ -157,6 +169,11 @@ class bar():
             outpipe.close()
             inpipe.close()
 
+    @env("karma")
+    def k(self):
+        return {"Elliot": 5}
+
+
     @complexcommand(">")
     @complexcommand
     async def seval(self, args, inpipe, outpipe):
@@ -164,25 +181,102 @@ class bar():
         try:
             while 1:
                 x = await inpipe.recv()
-                response, _ = parse_string(ChainMap(self.bot.env, {"msg": x}), args.line)
+                response, _ = parse_string(
+                    ChainMap(self.bot.env, {"msg": x}, {"self": self.bot.userspaces[args.server][args.nick]},
+                             copy.deepcopy(self.bot.userspaces[args.server]), self.bot.envs), args.text)
                 called = True
-                outpipe.send(args.reply(data=response, text=repr(response)))
+                if response:
+                    outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
         except PipeClosed:
             if not called:
-                response, _ = parse_string(ChainMap(self.bot.env, {"msg": args}), args.line)
-                # del env["msg"]
-                # self.bot.env = dict(env)
-
-                outpipe.send(args.reply(data=response, text=repr(response)))
+                response, _ = parse_string(
+                    ChainMap(self.bot.env, {"msg": args.reply()}, {"self": self.bot.userspaces[args.server][args.nick]},
+                             copy.deepcopy(self.bot.userspaces[args.server]), self.bot.envs), args.text)
+                if response:
+                    outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
         finally:
             outpipe.close()
             inpipe.close()
 
     @pipeinable_command
-    def iterate(self, msg):
+    def iterate(self, args, msg):
         for x in msg.data:
-            yield msg.reply(x)
+            yield msg.reply([x])
+
+    @complexcommand
+    async def cat(self, initial, inpipe, outpipe):
+        cot = []
+        try:
+            while 1:
+                x = await inpipe.recv()
+                cot.append(x.data)
+        except PipeClosed:
+            outpipe.send(initial.reply(cot))
+        finally:
+            outpipe.close()
+            inpipe.close()
 
     @pipeinable_command
-    def rev(self, msg):
+    def rev(self, args, msg):
         return msg.reply(msg.data[::-1])
+
+
+@plugin
+class test:
+    @onload
+    def load(self):
+        print("plugin loaded!!!1!!one!!")
+
+    @unload
+    def uload(self):
+        print("plugin unloaded!!1one11!!")
+
+    @cron("*/2 * * * *")
+    def fizz(self):
+        print("fizz", datetime.datetime.now())
+
+    @cron("*/3 * * * *")
+    def buzz(self):
+        print("buzz", datetime.datetime.now())
+
+    @regex(r"what")
+    def regg(self, msg, match):
+        print(match)
+
+    @complexcommand
+    async def timeit(self, initial, inpipe, outpipe):
+        tim = initial.timestamp
+        try:
+            while 1:
+                x = await inpipe.recv()
+                outpipe.send(x)
+        except PipeClosed:
+
+            outpipe.send(initial.reply([(datetime.datetime.now() - tim).total_seconds()]))
+        finally:
+            outpipe.close()
+            inpipe.close()
+
+    @outputfilter
+    async def spam(self, initial, inpipe, outpipe):
+        spam = []
+        try:
+            while 1:
+                x = await inpipe.recv()
+                spam.append(x)
+                if len(spam) < 4:
+                    outpipe.send(x)
+        except PipeClosed:
+            if len(spam) > 4:
+                data = {'f:1': '\n'.join(m.text for m in spam)}
+                response = await schedthreadedfunc(urllib.request.urlopen, urllib.request.Request('http://ix.io',
+                                                                                                  urllib.parse.urlencode(
+                                                                                                      data).encode(
+                                                                                                      'utf-8')))
+                response = response.read().decode()
+                outpipe.send(initial.reply(text="spam detected! here is the output: %s" % response))
+            elif len(spam) == 4:
+                outpipe.send(spam[-1])
+        finally:
+            outpipe.close()
+            inpipe.close()

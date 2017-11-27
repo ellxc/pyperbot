@@ -100,3 +100,9 @@ class PipeManager:
         except asyncio.TimeoutError:
             _.cancel()
             raise TimeoutError()
+
+
+class piperror(Exception):
+    def __init__(self, errstr, exs):
+        self.errstr = errstr
+        self.exs = exs
