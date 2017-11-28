@@ -155,7 +155,7 @@ class Pyperbot:
                 if name == plugin_name:
                     handlers.append(Class)
                     found = True
-                    self.load_plugin(name, Class, config=config)
+                    self.load_plugin(plugin, Class, config=config)
         else:
             temp = importlib.machinery.SourceFileLoader(plugin, os.path.dirname(
                 os.path.abspath(__file__)) + "/plugins/" + plugin + ".py").load_module()
@@ -181,7 +181,7 @@ class Pyperbot:
         syncs = []
         envs = {}
         instance = plugin(self, config=config)
-        for name, func in inspect.getmembers(instance):
+        for _, func in inspect.getmembers(instance):
             if hasattr(func, "_crons"):
                 for cr in func._crons:
                     if cr not in crons:
@@ -223,7 +223,6 @@ class Pyperbot:
             self.loop.call_soon(x)
 
     def unload_plugin(self, name):
-        assert name in self.plugins
         x = self.plugins[name]
         del self.plugins[name]
         for y in x.unloads:
@@ -314,7 +313,7 @@ class Pyperbot:
                     ((str(i + 1) + ": ") if len(e.exs) > 1 else "") + str(ex.__class__.__name__) + ": " + str(ex)))
                 try:
                     raise ex
-                except Exception:
+                except Exception:  # how to print to terminal
                     traceback.print_exc()
         except toomany as e:
             self.send(msg.reply("Error: Resulting call would be too long!"))
@@ -352,7 +351,6 @@ class Pyperbot:
                 raise envnotdef(offset, e)
 
         elif y == "alias":
-            print(y, off, x)
             (_, _, target), pipeline = x
             self.aliases[target] = pipeline
 
@@ -410,7 +408,6 @@ class Pyperbot:
         elif arg_type == "singlequote":
             return [[aString(s), loc]]
         elif arg_type == "homedir":
-            print(s)
             try:
                 path = s.split(".")
                 path.reverse()
@@ -428,13 +425,11 @@ class Pyperbot:
             try:
                 return [[preargs[index], loc]]
             except IndexError as e:
-                print("fuck", preargs, index)
                 raise missingarg(offset, "missing arg no:%s" % index)
         elif arg_type == "back_range":
 
             # if not preargs:
             #     raise Exception("this pipeline takes a parameter!")
-            print("range", s)
             start = None if s.start is None else int(s.start)
             stop = None if s.stop is None else int(s.stop)
             step = None if s.step is None else int(s.step)
