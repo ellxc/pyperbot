@@ -3,7 +3,7 @@ import inspect
 
 import crontab
 
-from util import PipeClosed
+from util import PipeClosed, notAuthed
 
 
 def plugin(_class):
@@ -258,7 +258,7 @@ def wrapinner(func, admin=False):
             if await this.bot.is_authed(args[0]):
                 return await outfunc(this, *args, out=out)
             else:
-                raise Exception("you are not an admin!")
+                raise notAuthed("you are not an admin!")
     else:
         final = outfunc
 

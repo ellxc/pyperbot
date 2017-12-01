@@ -1,3 +1,6 @@
 rainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle([5,4,7,3,12,6,13]), "!::" or msg.text or 'rainbow')) | strfrmt {}
 choo=> ("!::").split() or msg.data or 'CHOO CHOO'.split() | > " _||__;--: "+" ".join(":-"+"-"*max(4,len(x))+"-:" for x in msg.data[0]);"(        | "+" ".join("| "+x.center(4)+" |" for x in msg.data[0]);"/-(@)--(@)~"+"~".join("(@)"+"-"*max(2,len(x)-2)+"(@)" for x in msg.data[0]) | iterate
 rchoo=choo !:: | rainbow
+bored=> self.setdefault("bored",0);self.bored+=1;self.bored | > msg.data[-1] | strfrmt your bored count is now {}!
+choose=echo !:: | > random.choice(msg.data) if "beer" not in msg.data else "beer" | strfrmt I CHOSE: {}
+glue=echo !:0 is now glued to !:1

@@ -8,7 +8,7 @@ import os
 import pickle
 import re
 import traceback
-from collections import namedtuple, ChainMap
+from collections import namedtuple, ChainMap, defaultdict, deque
 
 import datetime
 from pyparsing import ParseException
@@ -16,15 +16,15 @@ from pyparsing import ParseException
 from Message import Message
 from client import IrcClient
 from events import EventManager
-from piping import PipeManager, piperror
+from piping import PipeManager, PipeError
 from pyperparser import total, inners, pipeline as pipline
-from util import MutableNameSpace, missingarg, envnotdef, CommandNotDefined, toomany, aString, shitHandler
+from util import MutableNameSpace, toomany, aString, shitHandler
 
 Plugin = namedtuple('plugin',
                     'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, envs')
 
 class Pyperbot:
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, debug=False):
         self.loop = loop
         self.clients = {}
         self.em = EventManager(loop=loop)
@@ -35,6 +35,9 @@ class Pyperbot:
         self.env = {}
         self.userspaces = {}
         self.admins = {}
+        self.message_buffer = defaultdict(lambda: defaultdict(lambda: deque(maxlen=50)))
+        self.debug = debug
+        self.apikeys = {}
         try:
             with open("aliases", 'r') as alias_file:
                 for line in alias_file.readlines():
@@ -43,19 +46,7 @@ class Pyperbot:
         except FileNotFoundError:
             pass
 
-
-
-            # if shell:
-            #     import repl
-            #     self.clients['repl'] = repl.repl(self.loop, self.em)
-            #     self.clients['repl'].start()
-
     def run(self):
-        # with shelve.open('userspaces', writeback=True) as self.userspaces:
-        #     for serv in self.clients:
-        #         if serv not in self.userspaces:
-        #             self.userspaces[serv] = {}
-        #     with shelve.open('env', writeback=True) as self.env:
         try:
             self.userspaces = pickle.load(open("userspaces.pickle", "rb"))
         except FileNotFoundError:
@@ -169,6 +160,7 @@ class Pyperbot:
         return handlers
 
     def load_plugin(self, name, plugin, config={}):
+
         print("loading plugin: " + plugin.__class__.__name__)
         crons = {}
         events = {}
@@ -291,6 +283,8 @@ class Pyperbot:
                 else:
                     func(msg)
 
+        self.message_buffer[msg.server][msg.params].append(msg)
+
 
     async def parse_msg(self, msg):
         try:
@@ -299,29 +293,36 @@ class Pyperbot:
             await self.run_parse(x, msg, callback=self.send, outputfilter=True)
         except ParseException as e:
             self.send(msg.reply(" " * (e.col + 1) + "^"))
-            self.send(msg.reply(str(e.__class__.__name__) + ": " + e.msg))
-        except envnotdef as e:
-            self.send(msg.reply(" " * (e.loc + 1) + "^"))
-            self.send(msg.reply(str(e.ex) + " is not defined"))
-        except CommandNotDefined as e:
-            self.send(msg.reply(" " * (e.loc + 1) + "^"))
-            self.send(msg.reply("function " + str(e.ex) + " is not defined"))
-        except piperror as e:
-            self.send(msg.reply(" " * 1 + e.errstr))
-            for i, ex in enumerate(e.exs):
+            self.send(msg.reply(str(e.__class__.__name__) + ": parse error!"))
+        except PipeError as e:
+            errstr = ""
+            errs = []
+            for loc, err in sorted(e.exs, key=lambda x: x[0]):
+                if isinstance(err, PipeError):
+                    for loc2, err2 in sorted(err.exs, key=lambda x: x[0]):
+                        errstr += " " * ((loc + loc2) - len(errstr)) + "^"
+                        errs.append(err2)
+                        if self.debug:
+                            try:
+                                raise err2
+                            except Exception:  # how to print to terminal
+                                traceback.print_exc()
+                else:
+                    errstr += " " * (loc - len(errstr)) + "^"
+                    errs.append(err)
+                    if self.debug:
+                        try:
+                            raise err
+                        except Exception:  # how to print to terminal
+                            traceback.print_exc()
+            errstr = " " * 1 + errstr  # TODO: MAKE this use len(commandchar)
+            self.send(msg.reply(errstr))
+            for i, ex in enumerate(errs):
                 self.send(msg.reply(
                     ((str(i + 1) + ": ") if len(e.exs) > 1 else "") + str(ex.__class__.__name__) + ": " + str(ex)))
-                try:
-                    raise ex
-                except Exception:  # how to print to terminal
-                    traceback.print_exc()
         except toomany as e:
             self.send(msg.reply("Error: Resulting call would be too long!"))
-        except missingarg as e:
-            self.send(msg.reply(" " * (e.loc + 1) + "^"))
-            self.send(msg.reply("MissingArg: " + e.ex))
-        except Exception as e:
-            # self.send(msg.reply(" " * (e.col + 1) + "^"))
+        except Exception as e:  # shouldn't happen... but just in case it does
             self.send(msg.reply(str(e.__class__.__name__) + ": " + str(e)))
             raise
 
@@ -332,12 +333,6 @@ class Pyperbot:
                                            outputfilter=outputfilter)
         elif y == "assignment":
             (_, _, [target]), (_, _, x) = x
-            res = await self.run_pipeline(x, msg, offset=offset, preargs=preargs)  # should never filter assignments
-
-            if res is not None and len(res) == 1:
-                x = res[0].data
-            else:
-                x = list(map(lambda m: m.data, res))
 
             try:
                 path = target.split(".")
@@ -345,10 +340,18 @@ class Pyperbot:
                 temp = ChainMap(self.env, {"self": self.userspaces[msg.server][msg.nick]})
                 while len(path) > 1:
                     temp = temp[path.pop()]
-                temp[path.pop()] = x
-                return x
             except KeyError as e:
-                raise envnotdef(offset, e)
+                raise NameError("Name %s is not defined" % e)
+
+            res = await self.run_pipeline(x, msg, offset=offset, preargs=preargs)  # should never filter assignments
+
+            if res is not None and len(res) == 1:
+                x = res[0].data
+            else:
+                x = list(map(lambda m: m.data, res))
+
+            temp[path.pop()] = x
+            return x
 
         elif y == "alias":
             (_, _, target), pipeline = x
@@ -357,7 +360,7 @@ class Pyperbot:
     async def run_pipeline(self, pipeline, initial: Message, callback=None, offset=0, preargs=[], outputfilter=False):
         cmds_n_args = []
         locs = []
-        async for (func, args, start) in self.funcs_n_args(pipeline, initial, offset=offset, preargs=preargs):
+        for (func, args, start) in await self.funcs_n_args(pipeline, initial, offset=offset, preargs=preargs):
             cmds_n_args.append((func, initial.reply(
                 text=" ".join(map(lambda x: "'%s'" % x if isinstance(x, aString) else str(x), args)), data=args)))
             locs.append(start)
@@ -368,18 +371,16 @@ class Pyperbot:
             cmds_n_args, loop=None,
             callback=callback)
         res, x = await x
-        errstr = ""
         errs = []
         for err, location in zip(x, locs):
-            if isinstance(err, SyntaxError):
-                errstr += " " * (location + err.offset - len(errstr)) + "^"
-                errs.append(err)
+            if isinstance(res, PipeError):
+                errs.extend(res.exs)
+            elif isinstance(err, SyntaxError):
+                errs.append((location + err.offset, err))
             elif isinstance(err, Exception):
-                errstr += " " * (location - len(errstr)) + "^"
-                errs.append(err)
-        if errstr:
-            errstr = " " + errstr
-            raise piperror(errstr, errs)
+                errs.append((location, err))
+        if errs:
+            raise PipeError(errs)
         return res
 
     async def do_arg(self, arg, initial, offset=0, preargs=[]):
@@ -391,22 +392,40 @@ class Pyperbot:
                 x = ChainMap(self.env, {"self": self.userspaces[initial.server][initial.nick]}, self.envs)
                 while path:
                     x = x[path.pop()]
-                return [[x, loc]]
+                return [x]
             except KeyError as e:
-                raise envnotdef(loc + offset, e)
+                raise NameError("Name %s is not defined" % e)
         elif arg_type == "backquote":
-            res = await self.run_parse(total.parseString(s, parseAll=True), initial, offset=loc + offset)
+            res = await self.run_parse(total.parseString(s, parseAll=True), initial, offset=loc + offset + 1)
             x = list(map(lambda m: m.data, res))
-            return [[x, loc]]
+            return [x]
         elif arg_type == "doublequote":
             for x in reversed(list(inners.scanString(s))):
                 toks, start, end = x
                 b = " ".join(
-                    str(b) for b, _ in await self.do_arg(toks[0], initial, offset=offset + loc, preargs=preargs))
+                    str(b) for b in await self.do_arg(toks[0], initial, offset=offset + loc, preargs=preargs))
                 s = s[:start] + str(b) + s[end:]
-            return [[aString(s), loc]]
+            return [aString(s)]
         elif arg_type == "singlequote":
-            return [[aString(s), loc]]
+            return [aString(s)]
+        elif arg_type == "msg_buffer":
+            index, name = s.index, s.name
+            if index is None:
+                index = 1
+            else:
+                index = int(index)
+
+            if name is None:
+                try:
+                    return [self.message_buffer[initial.server][initial.params][-index].text]
+                except IndexError:
+                    raise IndexError("Message buffer index out of range")
+            count = 0
+            for msg in filter(lambda m: m.nick == name, reversed(self.message_buffer[initial.server][initial.params])):
+                count += 1
+                if count == index:
+                    return [msg.text]
+            raise IndexError("Message buffer index out of range")
         elif arg_type == "homedir":
             try:
                 path = s.split(".")
@@ -414,65 +433,89 @@ class Pyperbot:
                 x = copy.deepcopy(self.userspaces[initial.server])
                 while path:
                     x = x[path.pop()]
-                return [[x, loc]]
+                return [x]
             except KeyError as e:
-                raise envnotdef(loc + offset, e)
+                raise KeyError("No such user: " + str(e))
         elif arg_type == "starred":
-            [[a, loc]] = await self.do_arg(s, initial, offset=offset + loc)
-            return [[n, loc] for n in a]
-        elif arg_type == "back_index":
+            [a] = await self.do_arg(s, initial, offset=offset + loc)
+            return [n for n in a]
+        elif arg_type == "arg_index":
             index = int(s.index)
             try:
-                return [[preargs[index], loc]]
+                return [preargs[index]]
             except IndexError as e:
-                raise missingarg(offset, "missing arg no:%s" % index)
-        elif arg_type == "back_range":
-
-            # if not preargs:
-            #     raise Exception("this pipeline takes a parameter!")
+                raise IndexError("missing arg %s" % index)
+        elif arg_type == "arg_range":
             start = None if s.start is None else int(s.start)
             stop = None if s.stop is None else int(s.stop)
             step = None if s.step is None else int(s.step)
             try:
-                # got a range
-
-                # if a > len(preargs) or b > len(preargs):
-                #     raise IndexError("This pipline needs atleast %s params!" % s[1])  #TODO make this use a custom error with location
-                return [[q, loc] for q in preargs[slice(start, stop, step)]]
+                return [q for q in preargs[slice(start, stop, step)]]
             except IndexError as e:
-                raise missingarg(loc, "missing arg no:%s" % start)
+                raise IndexError(("missing arg %s :" % start) + str(e))
         else:
-            return [[s, loc]]
+            return [s]
+
+    async def do_args(self, args, initial, preargs=[], offset=0):
+        rargs = []
+        exceptions = []
+        argers = [self.do_arg(x, initial, offset, preargs) for x in args]
+        x = await asyncio.gather(*argers, return_exceptions=True)
+        _, locs, _ = zip(*args)
+        errs = []
+        for res, location in zip(x, locs):
+            if isinstance(res, PipeError):
+                errs.extend(res.exs)
+            elif isinstance(res, SyntaxError):
+                errs.append((location + res.offset + offset, res))
+            elif isinstance(res, Exception):
+                errs.append((location + offset, res))
+            else:
+                rargs.extend(res)
+
+        if errs:
+            raise PipeError(errs)
+        else:
+            return rargs
 
     async def funcs_n_args(self, pipeline, initial, preargs=[], offset=0, count=0):
         count = count
+        ret = []
+        errs = []
         for _, _, [(_, start, cmd_name), *cmd_args] in pipeline:
             if count > 50:
                 raise toomany()
-
-            args = []
-
-            argers = [self.do_arg(x, initial, offset, preargs) for x in cmd_args]
-            for shit in await asyncio.gather(*argers):
-                for arg, loc in shit:
-                    args.append(arg)
+            if cmd_args:
+                try:
+                    args = await self.do_args(cmd_args, initial, preargs, offset)
+                except PipeError as p:
+                    errs.extend(p.exs)
+            else:
+                args = []
 
             if cmd_name in self.commands:
-                func = self.commands[cmd_name]
-                yield (func, args, start + offset)
-                count += 1
+                if not errs:
+                    func = self.commands[cmd_name]
+                    ret.append((func, args, start + offset))
+                    count += 1
             elif cmd_name in self.aliases:
-                first = True
-                try:
+                if not errs:
+                    first = True
                     _, _, pip = pipline.parseString(self.aliases[cmd_name], parseAll=True)[0]
-                    async for func_, args_, _ in self.funcs_n_args(pip, initial, preargs=args,
-                                                                          offset=offset + start, count=count + 1):
-                        yield (func_, args_, start + offset)
-                        count += 1
-                except missingarg as e:
-                    raise missingarg(e.loc, e.ex + " for alias " + cmd_name)
+                    try:
+                        for func_, args_, _ in await self.funcs_n_args(pip, initial, preargs=args,
+                                                                       offset=offset + start, count=count + 1):
+                            ret.append((func_, args_, start + offset))
+                            count += 1
+                    except PipeError as e:
+                        errs.extend([(start, err) for _, err in e.exs])
+
             else:
-                raise CommandNotDefined(offset + start, cmd_name)
+                errs.append((offset + start, NameError("Unrecognised Command '%s'" % cmd_name)))
+
+        if errs:
+            raise PipeError(errs)
+        return ret
 
     @staticmethod
     def from_config(filename):
@@ -480,7 +523,13 @@ class Pyperbot:
         json_config = codecs.open(filename, 'r', 'utf-8-sig')
         config = json.load(json_config)
         loop = asyncio.get_event_loop()
-        bot = Pyperbot(loop=loop)
+
+        if "debug" in config:
+            debug = config['debug']
+        else:
+            debug = False
+
+        bot = Pyperbot(loop=loop, debug=debug)
 
         if "apikeys" in config:
             for api, key in config["apikeys"]:

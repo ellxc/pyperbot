@@ -6,6 +6,7 @@ import ctypes
 from asyncio import events, coroutine, locks, sleep
 from collections import MutableMapping
 from concurrent.futures import Future, ProcessPoolExecutor
+from contextlib import contextmanager
 from logging import Handler
 
 
@@ -319,6 +320,12 @@ class MutableNameSpace(MutableMapping):
         return result
 
 
+class locatableException(Exception):
+    def __init__(self, loc, ex):
+        self.loc = loc
+        self.ex = ex
+
+
 class missingarg(Exception):
     def __init__(self, loc, ex):
         self.loc = loc
@@ -328,19 +335,7 @@ class missingarg(Exception):
         return self.ex
 
 
-class envnotdef(Exception):
-    def __init__(self, loc, ex):
-        self.loc = loc
-        self.ex = ex
 
-
-class CommandNotDefined(Exception):
-    def __init__(self, loc, ex):
-        self.loc = loc
-        self.ex = ex
-
-    def __str__(self):
-        return repr(self.ex)
 
 
 class toomany(Exception):
@@ -350,6 +345,9 @@ class toomany(Exception):
 class aString(str):
     pass
 
+
+class notAuthed(Exception):
+    pass
 
 class shitHandler(Handler):
     """
@@ -366,3 +364,22 @@ class shitHandler(Handler):
 
     def emit(self, record):
         print(self.format(record))
+
+
+@contextmanager
+def manage_pipes(*pipes, err=True):
+    try:
+        yield
+    except PipeClosed:
+        pass
+    except Exception as e:
+        if err == True:
+            try:
+                pipes[-1].send(e)
+            except PipeClosed:
+                pass
+        else:
+            pass
+    finally:
+        for pipe in pipes:
+            pipe.close()
