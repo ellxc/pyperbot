@@ -12,7 +12,7 @@ from collections import namedtuple, ChainMap, defaultdict, deque
 
 import datetime
 from pyparsing import ParseException
-
+from seval import parse_string
 from Message import Message
 from client import IrcClient
 from events import EventManager
@@ -160,8 +160,7 @@ class Pyperbot:
         return handlers
 
     def load_plugin(self, name, plugin, config={}):
-
-        print("loading plugin: " + plugin.__class__.__name__)
+        print("loading plugin: " + plugin.__name__)
         crons = {}
         events = {}
         triggers = {}
