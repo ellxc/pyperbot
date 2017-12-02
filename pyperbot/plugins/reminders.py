@@ -1,7 +1,8 @@
 import datetime
+
 from dateutil import parser
 
-from wrappers import plugin, command
+from pyperbot.wrappers import plugin, command
 
 units = {
     "year"        : 31536000,

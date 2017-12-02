@@ -1,6 +1,7 @@
 # coding=utf-8
 import asyncio
 import copy
+import datetime
 import importlib
 import inspect
 import logging
@@ -10,21 +11,21 @@ import re
 import traceback
 from collections import namedtuple, ChainMap, defaultdict, deque
 
-import datetime
 from pyparsing import ParseException
-from seval import parse_string
-from Message import Message
-from client import IrcClient
-from events import EventManager
-from piping import PipeManager, PipeError
-from pyperparser import total, inners, pipeline as pipline
-from util import MutableNameSpace, toomany, aString, shitHandler
+
+from pyperbot.Message import Message
+from pyperbot.client import IrcClient
+from pyperbot.events import EventManager
+from pyperbot.piping import PipeManager, PipeError
+from pyperbot.pyperparser import total, inners, pipeline as pipline
+from pyperbot.util import MutableNameSpace, toomany, aString, shitHandler
 
 Plugin = namedtuple('plugin',
                     'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, envs')
 
 class Pyperbot:
-    def __init__(self, loop: asyncio.AbstractEventLoop, debug=False):
+    def __init__(self, loop: asyncio.AbstractEventLoop, debug=False, aliasfile='aliases', envfile='env.pickle',
+                 userspacefile='userspaces.pickle'):
         self.loop = loop
         self.clients = {}
         self.em = EventManager(loop=loop)
@@ -38,35 +39,40 @@ class Pyperbot:
         self.message_buffer = defaultdict(lambda: defaultdict(lambda: deque(maxlen=50)))
         self.debug = debug
         self.apikeys = {}
-        try:
-            with open("aliases", 'r') as alias_file:
-                for line in alias_file.readlines():
-                    name, _, pipe = line.strip().partition("=")
-                    self.aliases[name] = pipe
-        except FileNotFoundError:
-            pass
+        self.aliasfile = aliasfile
+        self.envfile = envfile
+        self.userspacefile = userspacefile
+
 
     def run(self):
         try:
-            self.userspaces = pickle.load(open("userspaces.pickle", "rb"))
+            self.userspaces = pickle.load(open(self.userspacefile, "rb"))
         except FileNotFoundError:
             pass
         for serv in self.clients:
             if serv not in self.userspaces:
                 self.userspaces[serv] = {}
         try:
-            self.env = pickle.load(open("env.pickle", "rb"))
+            self.env = pickle.load(open(self.envfile, "rb"))
+        except FileNotFoundError:
+            pass
+
+        try:
+            with open(self.aliasfile, 'r') as alias_file:
+                for line in alias_file.readlines():
+                    name, _, pipe = line.strip().partition("=")
+                    self.aliases[name] = pipe
         except FileNotFoundError:
             pass
 
         self.loop.call_later(10, self.cronshim)
         self.loop.run_forever()
 
-        with open("aliases", 'w+') as alias_file:
+        with open(self.aliasfile, 'w+') as alias_file:
             for name, pipe in self.aliases.items():
                 alias_file.write((name + "=" + pipe + "\n"))
-        pickle.dump(self.userspaces, open("userspaces.pickle", "wb"))
-        pickle.dump(self.env, open("env.pickle", "wb"))
+        pickle.dump(self.userspaces, open(self.userspacefile, "wb"))
+        pickle.dump(self.env, open(self.envfile, "wb"))
 
     def cronshim(self, *funcs):
         if funcs:
@@ -251,7 +257,7 @@ class Pyperbot:
     def sync(self):
         for func in self.syncs:
             func()
-        with open("aliases", 'w+') as alias_file:
+        with open(self.aliasfile, 'w+') as alias_file:
             for name, pipe in self.aliases.items():
                 alias_file.write((name + "=" + pipe + "\n"))
         pickle.dump(self.userspaces, open("userspaces.pickle", "wb"))
@@ -523,15 +529,23 @@ class Pyperbot:
         config = json.load(json_config)
         loop = asyncio.get_event_loop()
 
+        kws = {}
         if "debug" in config:
-            debug = config['debug']
-        else:
-            debug = False
+            kws['debug'] = config['debug']
 
-        bot = Pyperbot(loop=loop, debug=debug)
+        if "aliasfile" in config:
+            kws['aliasfile'] = config['aliasfile']
+
+        if 'envfile' in config:
+            kws['envfile'] = config['envfile']
+
+        if 'userspacefile' in config:
+            kws['userspacefile'] = config['userspacefile']
+
+        bot = Pyperbot(loop=loop, **kws)
 
         if "apikeys" in config:
-            for api, key in config["apikeys"]:
+            for api, key in config["apikeys"].items():
                 bot.apikeys[api] = key
 
         for plugin, config_ in config["plugins"].items():
@@ -558,10 +572,6 @@ def throw(e):
     raise e
 
 if __name__ == "__main__":
-    # from repl import stdout_shim
-    #
-    # sys.stdout = stdout_shim(sys.stdout)
-
     log = logging.getLogger("pyperbot")
     log.setLevel(logging.DEBUG)
 

@@ -1,7 +1,7 @@
 
 import asyncio
 
-from util import async_pipe, PipeClosed
+from pyperbot.util import async_pipe, PipeClosed
 
 
 class PipeManager:

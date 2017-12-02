@@ -1,7 +1,6 @@
 import copy
-import re
-
 import datetime
+import re
 
 SPLIT_REGEX = r"^(?::(?:(?:(?P<nick>\S+)!)?(?:(?P<user>\S+)@)?(?P<domain>\S+) +))?" \
               r"(?P<command>\S+)(?: +(?!:)(?P<params>.+?))?(?: *:(?:\x01(?P<ctcp>\w+) )?(?P<text>.+?))?\x01?$"

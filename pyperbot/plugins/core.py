@@ -1,5 +1,5 @@
-from piping import PipeClosed
-from wrappers import plugin, command, pipeinable_command, complexcommand
+from pyperbot.piping import PipeClosed
+from pyperbot.wrappers import plugin, command, pipeinable_command, complexcommand
 
 
 @plugin

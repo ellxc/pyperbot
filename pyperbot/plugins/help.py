@@ -1,7 +1,7 @@
 from inspect import getdoc
 
-from piping import PipeClosed
-from wrappers import plugin, command, complexcommand
+from pyperbot.piping import PipeClosed
+from pyperbot.wrappers import plugin, command, complexcommand
 
 
 @plugin

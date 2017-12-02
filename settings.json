@@ -3,8 +3,20 @@
     "enabled": true,
     "file": false
   },
+  "debug": false,
+  "aliasfile": "aliases",
+  "envfile": "env.pickle",
+  "userspacefile": "userspaces.pickle",
   "plugins": {
-    "plugin.foo": {}
+    "karma": {
+      "filename": "karmastore.pickle"
+    },
+    "admin": {},
+    "core": {},
+    "spam_filter": {},
+    "seval_plugin": {},
+    "xargs": {},
+    "help": {}
   },
   "servers": [
     {

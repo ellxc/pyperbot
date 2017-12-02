@@ -2,8 +2,8 @@ import asyncio
 import logging
 from enum import IntFlag, auto
 
-from Message import Message
-from events import EventManager
+from pyperbot.Message import Message
+from pyperbot.events import EventManager
 
 
 class chanlevel(IntFlag):

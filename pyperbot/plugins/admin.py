@@ -1,4 +1,4 @@
-from wrappers import plugin, command
+from pyperbot.wrappers import plugin, command
 
 
 @plugin

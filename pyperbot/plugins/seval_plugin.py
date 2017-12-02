@@ -1,12 +1,10 @@
-from wrappers import plugin, complexcommand
-
-try:
-    from seval import parse_string
-except:
-    pass
-from collections import ChainMap
-from piping import PipeClosed
 import copy
+from collections import ChainMap
+
+from seval.seval import parse_string
+
+from pyperbot.piping import PipeClosed
+from pyperbot.wrappers import plugin, complexcommand
 
 
 @plugin

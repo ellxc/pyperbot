@@ -1,7 +1,7 @@
 import re
 import shelve
 
-from wrappers import plugin, command, env, regex, onload, unload, sync, cron
+from pyperbot.wrappers import plugin, command, env, regex, onload, unload, sync, cron
 
 
 @plugin

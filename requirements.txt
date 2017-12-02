@@ -1,0 +1,4 @@
+crontab==0.22.0
+pyparsing==2.2.0
+python-dateutil==2.6.1
+git+https://github.com/ellxc/seval.git

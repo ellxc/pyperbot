@@ -1,6 +1,6 @@
-from piping import PipeClosed, PipeError
-from pyperparser import total
-from wrappers import plugin, complexcommand
+from pyperbot.piping import PipeClosed, PipeError
+from pyperbot.pyperparser import total
+from pyperbot.wrappers import plugin, complexcommand
 
 
 @plugin

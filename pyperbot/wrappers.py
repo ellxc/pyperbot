@@ -3,7 +3,7 @@ import inspect
 
 import crontab
 
-from util import PipeClosed, notAuthed
+from pyperbot.util import PipeClosed, notAuthed
 
 
 def plugin(_class):

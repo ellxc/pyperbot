@@ -1,6 +1,6 @@
 import datetime
 
-from wrappers import plugin, cron, unload, onload
+from pyperbot.wrappers import plugin, cron, unload, onload
 
 
 @plugin

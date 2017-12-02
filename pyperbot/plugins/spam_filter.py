@@ -1,9 +1,9 @@
 import urllib.parse
 import urllib.request
 
-from piping import PipeClosed
-from util import schedthreadedfunc
-from wrappers import plugin, outputfilter
+from pyperbot.piping import PipeClosed
+from pyperbot.util import schedthreadedfunc
+from pyperbot.wrappers import plugin, outputfilter
 
 
 @plugin
