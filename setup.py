@@ -41,7 +41,7 @@ setup(
     # pyparsing==2.2.0
     # python-dateutil==2.6.1
     # git+https://github.com/ellxc/seval.git
-    install_requires=['crontab', 'pyparsing', 'python-dateutil', 'seval'],
+    install_requires=['crontab', 'pyparsing', 'python-dateutil'],
 
     # You can just specify the packages manually here if your project is
     # simple. Or you can use find_packages().
