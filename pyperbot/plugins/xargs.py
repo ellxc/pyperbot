@@ -49,7 +49,7 @@ class Xargs:
             while 1:
                 x = await inpipe.recv()
                 if strpipe:
-                    parse = total.parseString(pipeline)
+                    parse = total.parseString(pipeline, parseAll=True)
                     try:
                         await self.bot.run_parse(parse, x, callback=outpipe.send, preargs=x.data)
                     except PipeError as e:
