@@ -21,7 +21,9 @@ from pyperbot.pyperparser import total, inners, pipeline as pipline
 from pyperbot.util import MutableNameSpace, toomany, aString, shitHandler
 
 Plugin = namedtuple('plugin',
-                    'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, envs')
+                    'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, '
+                    'envs')
+
 
 class Pyperbot:
     def __init__(self, loop: asyncio.AbstractEventLoop, debug=False, aliasfile='aliases', envfile='env.pickle',
@@ -42,7 +44,6 @@ class Pyperbot:
         self.aliasfile = aliasfile
         self.envfile = envfile
         self.userspacefile = userspacefile
-
 
     def run(self):
         try:
@@ -93,8 +94,6 @@ class Pyperbot:
             delay = nxt.next(now=now, default_utc=True)
         self.loop.call_later(delay, lambda: self.cronshim(*fnc))
 
-
-
     def connect_to(self, servername, host, port, nick="pyperbot", channels=[], admins=None, password=None,
                    username=None, ssl=False):
         temp = IrcClient(host, port, loop=self.loop, ssl=ssl, username=username, password=password,
@@ -143,30 +142,30 @@ class Pyperbot:
     def load_plugin_file(self, plugin, config={}):
         handlers = []
         if "." in plugin:
-            module = "".join(plugin.split(".")[:-1])
+            module_ = "".join(plugin.split(".")[:-1])
             plugin_name = plugin.split(".")[-1]
-            temp = importlib.machinery.SourceFileLoader(module, os.path.dirname(
-                os.path.abspath(__file__)) + "/plugins/" + module + ".py").load_module()
+            temp = importlib.machinery.SourceFileLoader(module_, os.path.dirname(
+                os.path.abspath(__file__)) + "/plugins/" + module_ + ".py").load_module()
             found = False
             for name, Class in inspect.getmembers(temp, lambda x: inspect.isclass(x) and hasattr(x, "_plugin")):
                 if name == plugin_name:
                     handlers.append(Class)
                     found = True
-                    self.load_plugin(plugin, Class, config=config)
+                    self.load_plugin(plugin_name, Class, config=config)
         else:
             temp = importlib.machinery.SourceFileLoader(plugin, os.path.dirname(
                 os.path.abspath(__file__)) + "/plugins/" + plugin + ".py").load_module()
             found = False
             for name, Class in inspect.getmembers(temp, lambda x: inspect.isclass(x) and hasattr(x, "_plugin")):
                 handlers.append(Class)
-                self.load_plugin(name, Class, config=config)
+                self.load_plugin(plugin, Class, config=config)
                 found = True
-            if not found:
-                raise Exception("no such plugin to load or file did not contain a plugin")
+        if not found:
+            raise Exception("no such plugin to load or file did not contain a plugin")
         return handlers
 
     def load_plugin(self, name, plugin, config={}):
-        print("loading plugin: " + plugin.__name__)
+        print("loading plugin: " + plugin.__name__ + " / " + name)
         crons = {}
         events = {}
         triggers = {}
@@ -218,12 +217,18 @@ class Pyperbot:
                                     syncs=syncs, envs=envs)
         for x in onloads:
             self.loop.call_soon(x)
+        for ev, ehs in events.items():
+            for eh in ehs:
+                self.em.register_handler(ev, eh)
 
     def unload_plugin(self, name):
         x = self.plugins[name]
         del self.plugins[name]
         for y in x.unloads:
             self.loop.call_soon(y)
+        for ev, ehs in x.events.items():
+            for eh in ehs:
+                self.em.deregister_handler(ev, eh)
 
     @property
     def commands(self):
@@ -276,20 +281,18 @@ class Pyperbot:
             x = re.match(reg, msg.text)
             if x:
                 for func in funcs:
-                    if inspect.isawaitable(func):
-                        await func(msg, x)
-                    else:
-                        func(msg, x)
+                    x = func(msg, x)
+                    if inspect.isawaitable(x):
+                        await x
 
-        for trigger, func in self.triggers:
-            if trigger(msg):
-                if inspect.isawaitable(func):
-                    await func(msg)
-                else:
-                    func(msg)
+        for trigger, funcs in self.triggers.items():
+            for func in funcs:
+                if trigger(msg):
+                    x = func(msg)
+                    if inspect.isawaitable(x):
+                        await x
 
         self.message_buffer[msg.server][msg.params].append(msg)
-
 
     async def parse_msg(self, msg):
         try:
@@ -325,7 +328,7 @@ class Pyperbot:
             for i, ex in enumerate(errs):
                 self.send(msg.reply(
                     ((str(i + 1) + ": ") if len(e.exs) > 1 else "") + str(ex.__class__.__name__) + ": " + str(ex)))
-        except toomany as e:
+        except toomany:
             self.send(msg.reply("Error: Resulting call would be too long!"))
         except Exception as e:  # shouldn't happen... but just in case it does
             self.send(msg.reply(str(e.__class__.__name__) + ": " + str(e)))
@@ -350,7 +353,7 @@ class Pyperbot:
 
             res = await self.run_pipeline(x, msg, offset=offset, preargs=preargs)  # should never filter assignments
 
-            if res is not None and len(res) == 1:
+            if len(res) == 1:
                 x = res[0].data
             else:
                 x = list(map(lambda m: m.data, res))
@@ -367,7 +370,7 @@ class Pyperbot:
         locs = []
         for (func, args, start) in await self.funcs_n_args(pipeline, initial, offset=offset, preargs=preargs):
             cmds_n_args.append((func, initial.reply(
-                text=" ".join(map(lambda x: "'%s'" % x if isinstance(x, aString) else str(x), args)), data=args)))
+                text=" ".join(map(lambda d: "'%s'" % d if isinstance(d, aString) else str(d), args)), data=args)))
             locs.append(start)
         if outputfilter:
             for outfilter in self.outputfilters:
@@ -448,7 +451,7 @@ class Pyperbot:
             index = int(s.index)
             try:
                 return [preargs[index]]
-            except IndexError as e:
+            except IndexError:
                 raise IndexError("missing arg %s" % index)
         elif arg_type == "arg_range":
             start = None if s.start is None else int(s.start)
@@ -463,7 +466,6 @@ class Pyperbot:
 
     async def do_args(self, args, initial, preargs=[], offset=0):
         rargs = []
-        exceptions = []
         argers = [self.do_arg(x, initial, offset, preargs) for x in args]
         x = await asyncio.gather(*argers, return_exceptions=True)
         _, locs, _ = zip(*args)
@@ -505,7 +507,6 @@ class Pyperbot:
                     count += 1
             elif cmd_name in self.aliases:
                 if not errs:
-                    first = True
                     _, _, pip = pipline.parseString(self.aliases[cmd_name], parseAll=True)[0]
                     try:
                         for func_, args_, _ in await self.funcs_n_args(pip, initial, preargs=args,
@@ -568,8 +569,6 @@ class Pyperbot:
 
         return bot
 
-def throw(e):
-    raise e
 
 if __name__ == "__main__":
     log = logging.getLogger("pyperbot")
