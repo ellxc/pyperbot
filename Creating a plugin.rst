@@ -12,9 +12,9 @@ when loaded it's members are inspected for plugin features. The
 possible features and when they will be called are as follows:
 
 :onload: after the plugin has been
-        initialised. this is a useful place to load resources or start
-            threads etc.
-            ::
+    initialised. this is a useful place to load resources or start
+    threads etc.
+    ::
 
         @onload
         def load_file(self):
@@ -22,14 +22,16 @@ possible features and when they will be called are as follows:
 
 :unload: before the plugin instance
     is unloaded and deleted. useful releasing resources and saving
-    state. ::
+    state. 
+    ::
 
         @unload
         def save_file(self):
             ...
 
 :sync: when the bot is about to be shutdown or manually via the ``#sync``
-    admin command. useful for saving state. ::
+    admin command. useful for saving state. 
+    ::
 
         @sync
         def backup(self):
