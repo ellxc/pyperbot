@@ -18,16 +18,16 @@ class Seval:
             while 1:
                 x = await inpipe.recv()
                 response, _ = parse_string(
-                    ChainMap(self.bot.env, {"msg": x}, {"self": self.bot.userspaces[args.server][args.nick]},
-                             copy.deepcopy(self.bot.userspaces[args.server]), self.bot.envs), args.text)
+                    ChainMap(self.bot.env, {"msg": x}, {"self": self.bot.userspaces[args.server][args.nick]} if args.server in self.bot.userspaces else {},
+                             copy.deepcopy(self.bot.userspaces[args.server]) if args.server in self.bot.userspaces else {}, self.bot.envs), args.text)
                 called = True
                 if response:
                     outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
         except PipeClosed:
             if not called:
                 response, _ = parse_string(
-                    ChainMap(self.bot.env, {"msg": args.reply()}, {"self": self.bot.userspaces[args.server][args.nick]},
-                             copy.deepcopy(self.bot.userspaces[args.server]), self.bot.envs), args.text)
+                    ChainMap(self.bot.env, {"msg": args.reply()}, {"self": self.bot.userspaces[args.server][args.nick]} if args.server in self.bot.userspaces else {},
+                             copy.deepcopy(self.bot.userspaces[args.server]) if args.server in self.bot.userspaces else {}, self.bot.envs), args.text)
                 if response:
                     outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
         finally:
