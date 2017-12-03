@@ -6,12 +6,12 @@ An Asynchronous multi-server irc bot written in Python.
 Pre-requisites
 ~~~~~~~~~~~~~~
 
- * **Python** >3.6
- * **Seval** for a sandboxed python interpreter
- * **python-dateutil** for reminders
- * **pyparsing** for the shell parser
- * **crontab** for setting timed jobs
- * **patience** it might not work completely...
+* **Python** >3.6
+* **Seval** for a sandboxed python interpreter
+* **python-dateutil** for reminders
+* **pyparsing** for the shell parser
+* **crontab** for setting timed jobs
+* **patience** it might not work completely...
 
 Installing
 ~~~~~~~~~~
@@ -21,8 +21,8 @@ Installing
 
 Running
 ~~~~~~~
- 1. edit the **settings.json** file
- 2. run ``python3 -m pyperbot.bot settings.json``
+1. edit the **settings.json** file
+2. run ``python3 -m pyperbot.bot settings.json``
 
 Piping:
 -------
