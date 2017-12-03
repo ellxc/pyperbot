@@ -7,7 +7,7 @@ Pre-requisites
 ~~~~~~~~~~~~~~
 
 * **Python** >3.6
-* **Seval** for a sandboxed python interpreter
+* Seval_ for a sandboxed python interpreter
 * **python-dateutil** for reminders
 * **pyparsing** for the shell parser
 * **crontab** for setting timed jobs
@@ -23,6 +23,10 @@ Running
 ~~~~~~~
 1. edit the **settings.json** file
 2. run ``python3 -m pyperbot.bot settings.json``
+
+Creating your own plugins
+~~~~~~~~~~~~~~~~~~~~~~~~~
+see creating_
 
 Piping:
 -------
@@ -144,3 +148,5 @@ passing and the starred syntax. ::
     #echo "*$a"
     'this is some data'
 
+.. _Seval: https://github.com/ellxc/seval
+.. _creating: /CreatingPlugins.rst
