@@ -587,6 +587,15 @@ if __name__ == "__main__":
 
     bot = Pyperbot.from_config(argv[1])
     try:
+        if '-i' in argv:
+            from ptpython.repl import embed
+            def pipe(pipeline):
+                parse = total.parseString(pipeline)
+                try:
+                    asyncio.ensure_future(bot.run_parse(parse, Message(), callback=print))
+                except PipeError as e:
+                    print(e)
+            asyncio.ensure_future(embed(globals=globals(), return_asyncio_coroutine=True, patch_stdout=True), loop=bot.loop)
         bot.run()
     except KeyboardInterrupt:
         bot.sync()
