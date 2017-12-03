@@ -61,7 +61,7 @@ class IrcClient(asyncio.Protocol):
                     await self.timeout
                 self.timeout = self.loop.create_future()
             except asyncio.TimeoutError:
-                print("no message received in %s seconds, attempting to reconnect" % delay)
+                self.log.warning("no message received in %s seconds, attempting to reconnect" % delay)
                 self.closed = True
                 while self.closed:
                     try:
@@ -70,10 +70,10 @@ class IrcClient(asyncio.Protocol):
                         await self.loop.create_connection(lambda: self, host=self.host, port=self.port, ssl=self.ssl)
                         self.closed = False
                     except asyncio.TimeoutError:
-                        print("failed to reconnect, retrying in 5 seconds")
+                        self.log.warning("failed to reconnect, retrying in 5 seconds")
                         await asyncio.sleep(5)
             except Recconnect:
-                print("attempting to reconnect!")
+                self.log.warning("attempting to reconnect!")
                 while self.closed:
                     try:
                         self.timeout = self.loop.create_future()
@@ -81,7 +81,7 @@ class IrcClient(asyncio.Protocol):
                         await self.loop.create_connection(lambda: self, host=self.host, port=self.port, ssl=self.ssl)
                         self.closed = False
                     except asyncio.TimeoutError:
-                        print("failed to reconnect, retrying in 5 seconds")
+                        self.log.warning("failed to reconnect, retrying in 5 seconds")
                         await asyncio.sleep(5)
             finally:
                 pass
