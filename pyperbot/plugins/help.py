@@ -5,9 +5,9 @@ from pyperbot.wrappers import plugin, command, complexcommand
 
 
 @plugin
-class help:
+class Help:
     @command
-    def list(self, message):
+    def plugins(self, message):
         """list the loaded plugins"""
         return message.reply(list(self.bot.plugins.keys()), "loaded plugins: " + ", ".join(self.bot.plugins.keys()))
 
@@ -55,7 +55,7 @@ class help:
                     try:
                         com = args.data[0]
                         func = self.bot.commands[com]
-                    except:
+                    except KeyError:
                         raise Exception("specifed command not found")
                     doc = func.__doc__
                     if not doc:
@@ -64,9 +64,9 @@ class help:
                         firstline = "%s: %s" % (com, doc.split("\n")[0])
                         outpipe.send(args.reply(doc, firstline))
                 else:
+                    outpipe.send(args.reply(text="Use this command by passing in objects or specifying commands"))
                     outpipe.send(args.reply(text="A list of commands can be found with #commands, aliases at #aliases"))
-                    outpipe.send(args.reply(
-                        text="more help is available online at <link> or by passing in objects or specifying commands"))
+                    outpipe.send(args.reply(text="more help is available online at https://github.com/ellxc/pyperbot"))
         finally:
             outpipe.close()
             inpipe.close()

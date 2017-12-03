@@ -8,7 +8,7 @@ SPLIT_REGEX = r"^(?::(?:(?:(?P<nick>\S+)!)?(?:(?P<user>\S+)@)?(?P<domain>\S+) +)
 
 class Message:
     def __init__(self, server=None, nick="", user="", domain="", command="", params="", ctcp="",
-                 timestamp=None, groups=None, text=None, line=None, data=None, args=None, str_fn=None):
+                 timestamp=None, text=None, data=None, str_fn=None):
         self.server = server
         self.nick = nick
         self.user = user
@@ -42,8 +42,6 @@ class Message:
                     val = val[:-1]
         self._text = val
 
-
-
     @property
     def command(self):
         return "CTCP:"+self.ctcp[1:] if self.ctcp else self._command
@@ -55,8 +53,11 @@ class Message:
     def to_line(self):
         text = self.text.replace("\r", "").replace("\n", "")
         return "%s %s%s" % (
-            self.command, self.params, " :%s%s%s" % (("\001%s " % self.ctcp if self.ctcp else ""),
-            bytes(text, "utf-8")[:550].decode(), ("\001" if self.ctcp else "")) if self.text else "",
+            self.command,
+            self.params,
+            " :%s%s%s" % (("\001%s " % self.ctcp if self.ctcp else ""),
+                          bytes(text, "utf-8")[:550].decode(),
+                          ("\001" if self.ctcp else "")) if self.text else "",
             )
 
     def to_pretty(self):
@@ -84,11 +85,11 @@ class Message:
     def __str__(self):
         return "{}: {} {} {}:{}".format(
                 self.server,
-            (" <" + self.nick + "(" + self.user + (
-                "@" if self.user else "") + self.domain + ")" + ">") if self.domain else "",
+                (" <" + self.nick + "(" + self.user + ("@" if self.user else "") + self.domain + ")" + ">")
+                if self.domain else "",
                 "CTCP:"+self.ctcp[1:] if self.ctcp else self.command,
                 self.params,
-            bytes(self.text, "utf-8")[:550].decode(),
+                bytes(self.text, "utf-8")[:550].decode(),
             )
 
     @staticmethod

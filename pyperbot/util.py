@@ -26,30 +26,6 @@ def run_future(func, futr, *args, **kwargs):
     return futr.set_result(func(*args, **kwargs))
 
 
-async def schedthreadedgen(genfunc, *args, timout=None, **kwargs):
-    print(args)
-    outpipe, inpipe = async_pipe()
-
-    def runt():
-        print("runing gen")
-        for x in genfunc(*args, **kwargs):
-            print("got x:", x)
-            inpipe.send(x)
-        inpipe.close()
-
-    t = _thread.start_new_thread(runt, tuple())
-    try:
-        while 1:
-            print("running recv")
-            b = await outpipe.recv()
-            print("got b:", b)
-            yield b
-    except PipeClosed:
-        pass
-
-
-
-
 async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
     futr = Future()
     t = _thread.start_new_thread(run_future, (func, futr) + args, kwargs)
@@ -59,8 +35,7 @@ async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
         try:
             await asyncio.wait_for(asyncio.wrap_future(futr), timeout=timeout)
         except asyncio.TimeoutError:
-            res = ctypes.pythonapi.PyThreadState_SetAsyncExc(t,
-                                                             ctypes.py_object(TimeoutError))
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(t, ctypes.py_object(TimeoutError))
             raise TimeoutError()
     return futr.result()
 
@@ -81,19 +56,16 @@ async def schedproccedfunc(func, *args, timeout=None, **kwargs):
     return f.result()
 
 
-
-class shielded():
+class Shielded:
     def __init__(self, pipe):
         self.__dict__ = pipe.__dict__.copy()
         self.close = lambda: None
+
 
 @coroutine
 def wait_for(future, seconds):
     yield from sleep(seconds)
     future.set_result(None)
-
-
-
 
 
 class WaitableQueue:
@@ -188,7 +160,7 @@ class WaitableQueue:
                 yield from getter
             except PipeClosed:
                 raise
-            except:
+            except Exception:
                 getter.cancel()
                 if not self.empty() and not getter.cancelled():
                     self._wakeup_next(self._getters)
@@ -239,11 +211,11 @@ def async_pipe(loop=None):
 
 
 class MutableNameSpace(MutableMapping):
-    def __init__(self, data=None, all=False):
+    def __init__(self, data=None, recurse=False):
         if data is None:
             data = {}
         self._data = data
-        self._all = all
+        self._recurse = recurse
 
     def __repr__(self):
         ret = "{"
@@ -270,18 +242,18 @@ class MutableNameSpace(MutableMapping):
             self._data[key] = default
 
     def copy(self):
-        return MutableNameSpace(self._data.copy(), all=self._all)
+        return MutableNameSpace(self._data.copy(), recurse=self._recurse)
 
     def __getattr__(self, item):
         if item in self._data:
             ret = self._data[item]
             if isinstance(ret, MutableMapping) and not isinstance(ret, MutableNameSpace):
-                return MutableNameSpace(ret, all=self._all)
+                return MutableNameSpace(ret, recurse=self._recurse)
             else:
                 return ret
         else:
-            if self._all:
-                self._data[item] = MutableNameSpace({}, all=self._all)
+            if self._recurse:
+                self._data[item] = MutableNameSpace({}, recurse=self._recurse)
                 return self._data[item]
             else:
                 raise KeyError('%s' % item)
@@ -290,7 +262,7 @@ class MutableNameSpace(MutableMapping):
         if key.startswith("_"):
             object.__setattr__(self, key, value)
         elif isinstance(value, dict):
-            return self._data.__setitem__(key, MutableNameSpace(value, all=self._all))
+            return self._data.__setitem__(key, MutableNameSpace(value, recurse=self._recurse))
         else:
             return self._data.__setitem__(key, value)
 
@@ -305,28 +277,28 @@ class MutableNameSpace(MutableMapping):
 
     def __setstate__(self, vals):
         self._data = vals["data"]
-        self._all = vals["all"]
+        self._recurse = vals["all"]
 
     def __getstate__(self):
         return {
             "data": self._data,
-            "all" : self._all,
+            "all": self._recurse,
         }
 
     def __deepcopy__(self, memodict={}):
         result = self.__class__()
         memodict[id(self)] = result
-        result.__init__(copy.deepcopy(self._data, memo=memodict), self._all)
+        result.__init__(copy.deepcopy(self._data, memo=memodict), self._recurse)
         return result
 
 
-class locatableException(Exception):
+class LocatableException(Exception):
     def __init__(self, loc, ex):
         self.loc = loc
         self.ex = ex
 
 
-class missingarg(Exception):
+class MissingArg(Exception):
     def __init__(self, loc, ex):
         self.loc = loc
         self.ex = ex
@@ -335,10 +307,7 @@ class missingarg(Exception):
         return self.ex
 
 
-
-
-
-class toomany(Exception):
+class ResultingCallTooLong(Exception):
     pass
 
 
@@ -346,10 +315,11 @@ class aString(str):
     pass
 
 
-class notAuthed(Exception):
+class NotAuthed(Exception):
     pass
 
-class shitHandler(Handler):
+
+class ShitHandler(Handler):
     """
     A handler class which writes logging records, appropriately formatted,
     to a stream. Note that this class does not close the stream, as
@@ -367,19 +337,11 @@ class shitHandler(Handler):
 
 
 @contextmanager
-def manage_pipes(*pipes, err=True):
+def manage_pipes(*pipes):
     try:
         yield
     except PipeClosed:
         pass
-    except Exception as e:
-        if err == True:
-            try:
-                pipes[-1].send(e)
-            except PipeClosed:
-                pass
-        else:
-            pass
     finally:
         for pipe in pipes:
             pipe.close()

@@ -3,7 +3,7 @@ from pyperbot.wrappers import plugin, command, pipeinable_command, complexcomman
 
 
 @plugin
-class core:
+class Core:
     @pipeinable_command
     def strfrmt(self, args, each):
         """will format the string with any passed in data"""

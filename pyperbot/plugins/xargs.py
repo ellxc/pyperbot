@@ -4,7 +4,7 @@ from pyperbot.wrappers import plugin, complexcommand
 
 
 @plugin
-class xargs:
+class Xargs:
     # async def funcs_n_args(self, pipeline, initial, preargs=[]):
     #     # print("pipeline >>", pipeline)
     #     count = 0

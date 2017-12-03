@@ -8,7 +8,7 @@ from pyperbot.wrappers import plugin, complexcommand
 
 
 @plugin
-class seval:
+class Seval:
     @complexcommand(">")
     @complexcommand
     async def seval(self, args, inpipe, outpipe):

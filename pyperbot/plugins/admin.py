@@ -2,14 +2,14 @@ from pyperbot.wrappers import plugin, command
 
 
 @plugin
-class admin:
+class Admin:
     @command(admin=True)
     def pluginload(self, msg):
         """loads a plugin, admin only"""
         if not msg.data:
             return msg.reply(text="please specify a plugin")
-        for plugin in msg.data:
-            self.bot.load_plugin_file(plugin)
+        for plgn in msg.data:
+            self.bot.load_plugin_file(plgn)
         return msg.reply(text="loaded plugin(s) " + msg.text)
 
     @command(admin=True)
@@ -17,8 +17,8 @@ class admin:
         """unloads a plugin, admin only"""
         if not msg.data:
             return msg.reply(text="please specify a plugin")
-        for plugin in msg.data:
-            self.bot.unload_plugin(plugin)
+        for plgn in msg.data:
+            self.bot.unload_plugin(plgn)
         return msg.reply(text="unloaded plugin(s) " + msg.text)
 
     @command(admin=True)
@@ -26,9 +26,9 @@ class admin:
         """reloads a plugin, admin only"""
         if not msg.data:
             return msg.reply(text="please specify a plugin")
-        for plugin in msg.data:
-            self.bot.unload_plugin(plugin)
-            self.bot.load_plugin_file(plugin)
+        for plgn in msg.data:
+            self.bot.unload_plugin(plgn)
+            self.bot.load_plugin_file(plgn)
         return msg.reply(text="reloaded plugin(s) " + msg.text)
 
     @command(admin=True)

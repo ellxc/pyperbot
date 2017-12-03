@@ -29,8 +29,6 @@ class EventManager:
         self.events[event].add_done_callback(lambda res: fn(**res.result()))
 
     def fire_event(self, event, **kwargs):
-        #print("got event %s with args %s" % (event, kwargs))
-
         for ev in event_split(event):
             if ev in self.events:
                 self.events[ev].set_result(kwargs)

@@ -18,7 +18,7 @@ from pyperbot.client import IrcClient
 from pyperbot.events import EventManager
 from pyperbot.piping import PipeManager, PipeError
 from pyperbot.pyperparser import total, inners, pipeline as pipline
-from pyperbot.util import MutableNameSpace, toomany, aString, shitHandler
+from pyperbot.util import MutableNameSpace, ResultingCallTooLong, aString, ShitHandler
 
 Plugin = namedtuple('plugin',
                     'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, '
@@ -272,7 +272,7 @@ class Pyperbot:
         if msg.server not in self.userspaces:
             self.userspaces[msg.server] = {}
         if msg.nick not in self.userspaces[msg.server]:
-            self.userspaces[msg.server][msg.nick] = MutableNameSpace(all=True)
+            self.userspaces[msg.server][msg.nick] = MutableNameSpace(recurse=True)
 
         if msg.text.startswith("#"):
             await self.parse_msg(msg)
@@ -328,7 +328,7 @@ class Pyperbot:
             for i, ex in enumerate(errs):
                 self.send(msg.reply(
                     ((str(i + 1) + ": ") if len(e.exs) > 1 else "") + str(ex.__class__.__name__) + ": " + str(ex)))
-        except toomany:
+        except ResultingCallTooLong:
             self.send(msg.reply("Error: Resulting call would be too long!"))
         except Exception as e:  # shouldn't happen... but just in case it does
             self.send(msg.reply(str(e.__class__.__name__) + ": " + str(e)))
@@ -491,7 +491,7 @@ class Pyperbot:
         errs = []
         for _, _, [(_, start, cmd_name), *cmd_args] in pipeline:
             if count > 50:
-                raise toomany()
+                raise ResultingCallTooLong()
             if cmd_args:
                 try:
                     args = await self.do_args(cmd_args, initial, preargs, offset)
@@ -574,7 +574,7 @@ if __name__ == "__main__":
     log = logging.getLogger("pyperbot")
     log.setLevel(logging.DEBUG)
 
-    ch = shitHandler()
+    ch = ShitHandler()
 
     ch.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(message)s')

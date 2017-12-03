@@ -2,7 +2,7 @@ from pyperbot.wrappers import plugin, command
 
 
 @plugin
-class foo:
+class Foo:
     @command
     def test(self, msg):
         return msg.reply(text="test worked!")

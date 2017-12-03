@@ -72,7 +72,7 @@ quants = {
 
 
 @plugin
-class reminders:
+class Reminders:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
@@ -83,7 +83,7 @@ class reminders:
         if message.data[1:2] == ["in"]:
             try:
                 target, _, quant, unit, *msg = message.data
-            except:
+            except Exception:
                 raise Exception("invalid syntax")
 
             if quant in quants:
@@ -91,8 +91,8 @@ class reminders:
             else:
                 try:
                     quant = float(quant)
-                except:
-                    Exception("unknown quantity: %s" % quant)
+                except Exception:
+                    raise Exception("unknown quantity: %s" % quant)
 
             if unit in units:
                 unit = units[unit]
@@ -133,6 +133,7 @@ class reminders:
         self.reminders.append((y, settime))
         self.bot.loop.call_later((settime - datetime.datetime.now()).total_seconds(),
                                  self.remindshim(y, (y, settime)), )
+        return message.reply(responsetext)
 
     def remindshim(self, message, reminder):
         def foo():

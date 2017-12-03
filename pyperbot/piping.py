@@ -30,26 +30,26 @@ class PipeManager:
         finally:
             inpipe.close()
 
-    async def run_pipe(self, cmds_args, callback=None, collector=lambda x: x, err_callback=None, timeout=15, loop=None):
+    async def run_pipe(self, cmds_args, callback=None, timeout=15, loop=None):
         tasks = []
         out = []
 
-        next, first = async_pipe()
+        next_, first = async_pipe()
         for func, args in cmds_args:
             next3, next2 = async_pipe(loop=loop)
-            tasks.append(asyncio.ensure_future(func(args, next, next2),loop=loop if loop is not None else self.loop))
-            next = next3
+            tasks.append(asyncio.ensure_future(func(args, next_, next2), loop=loop if loop is not None else self.loop))
+            next_ = next3
 
-        tasks.append(self._stdout(next, callback, out))
+        tasks.append(self._stdout(next_, callback, out))
         first.close()
 
-        _= asyncio.gather(*tasks, loop=loop if loop is not None else self.loop, return_exceptions=True)
+        pipe_sections = asyncio.gather(*tasks, loop=loop if loop is not None else self.loop, return_exceptions=True)
 
         try:
-            x = await asyncio.wait_for(_, timeout=timeout, loop=loop if loop is not None else self.loop)
+            x = await asyncio.wait_for(pipe_sections, timeout=timeout, loop=loop if loop is not None else self.loop)
             return out, x
         except asyncio.TimeoutError:
-            _.cancel()
+            pipe_sections.cancel()
             raise TimeoutError()
 
 

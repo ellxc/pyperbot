@@ -1,32 +1,11 @@
 import asyncio
 import logging
-from enum import IntFlag, auto
-
 from pyperbot.Message import Message
 from pyperbot.events import EventManager
 
 
-class chanlevel(IntFlag):
-    voice = auto()
-    halfop = auto()
-    op = auto()
-
-
-DELIM = b"\r\n"
-DELIM_COMPAT = b"\n"
-
-
-# TODO
-# WORK OUT TIMEOUT
-
-class rec(Exception):
+class Recconnect(Exception):
     pass
-
-
-# class channel:
-#     def __init__(self, server, names):
-#         if "PREFIX" in server.serverconf:
-
 
 
 class IrcClient(asyncio.Protocol):
@@ -61,16 +40,15 @@ class IrcClient(asyncio.Protocol):
 
         self.log = logging.getLogger("pyperbot." + servername or host or "??? server", )
 
-        BASE_EVENTS = [
+        base_events = [
             ("PING", lambda **kwargs: self.send(kwargs['message'].reply(command="PONG", text=kwargs['message'].text))),
-            # ("433", lambda **kwargs: self.transport.write(('NICK ' + kwargs["message"].params.split()[-1] + "_").encode() + self.ODELIM)),
             ("433", lambda **kwargs: self.send(
                 Message(command='NICK', params=kwargs["message"].params.split()[-1] + "_"))),
             ('005', lambda message: self.serverconf.update(
                 {k: v for x in message.params.split() for k, _, v in [x.partition('=')]}))
         ]
 
-        for event, fn in BASE_EVENTS:
+        for event, fn in base_events:
             self.em.register_handler(event, fn)
 
         self.timeout = self.loop.create_future()
@@ -90,10 +68,10 @@ class IrcClient(asyncio.Protocol):
                         self.transport.close()
                         await self.loop.create_connection(lambda: self, host=self.host, port=self.port, ssl=self.ssl)
                         self.closed = False
-                    except:
+                    except asyncio.TimeoutError:
                         print("failed to reconnect, retrying in 5 seconds")
                         await asyncio.sleep(5)
-            except rec:
+            except Recconnect:
                 print("attempting to reconnect!")
                 while self.closed:
                     try:
@@ -101,7 +79,7 @@ class IrcClient(asyncio.Protocol):
                         self.transport.close()
                         await self.loop.create_connection(lambda: self, host=self.host, port=self.port, ssl=self.ssl)
                         self.closed = False
-                    except:
+                    except asyncio.TimeoutError:
                         print("failed to reconnect, retrying in 5 seconds")
                         await asyncio.sleep(5)
             finally:
@@ -141,12 +119,16 @@ class IrcClient(asyncio.Protocol):
         self.transport.write(message.to_line().encode() + self.ODELIM)
 
     async def connect(self, attempts=3):
+        if attempts == 0:
+            raise Exception("Could not connect")
         if not self.closed:
             await self.disconnect()
         try:
             await self.loop.create_connection(lambda: self, host=self.host, port=self.port, ssl=self.ssl)
         except OSError:
             print("could not connect, retrying in 5")
+            await asyncio.sleep(5)
+            await self.connect(attempts=attempts-1)
 
     def connection_made(self, transport):
         self.transport = transport
@@ -163,7 +145,7 @@ class IrcClient(asyncio.Protocol):
             self.transport.close()
 
         if self.reconnect:
-            self.timeout.set_exception(rec())
+            self.timeout.set_exception(Recconnect())
         else:
             self.timeout.cancel()
 

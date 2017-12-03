@@ -5,10 +5,11 @@ from pyperbot.wrappers import plugin, command, env, regex, onload, unload, sync,
 
 
 @plugin
-class karma:
+class Karma:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
+        self.store = {}
         if 'filename' in self.config:
             self.filename = self.config['filename']
         else:

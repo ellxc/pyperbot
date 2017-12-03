@@ -7,7 +7,7 @@ from pyperbot.wrappers import plugin, outputfilter
 
 
 @plugin
-class spamfilter:
+class SpamFilter:
     @outputfilter
     async def spam(self, initial, inpipe, outpipe):
         spam = []

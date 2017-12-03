@@ -32,7 +32,7 @@ class example:
         print("plugin synced")
 
     @event('NOTICE')
-    def noticenoticer(self, msg):
+    def noticenoticer(self, message):
         print("I saw a notice!")
         self.count += 1
 
@@ -47,7 +47,7 @@ class example:
 
     @command('count')
     def countcommand(self, msg):
-        return msg.reply(self.count)
+        return msg.reply(text=str(self.count))
 
     @pipeinable_command('face')
     def trailingface(self, initial, msg):

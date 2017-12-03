@@ -3,7 +3,7 @@ import inspect
 
 import crontab
 
-from pyperbot.util import PipeClosed, notAuthed
+from pyperbot.util import PipeClosed, NotAuthed
 
 
 def plugin(_class):
@@ -258,7 +258,7 @@ def wrapinner(func, admin=False):
             if await this.bot.is_authed(args[0]):
                 return await outfunc(this, *args, out=out)
             else:
-                raise notAuthed("you are not an admin!")
+                raise NotAuthed("you are not an admin!")
     else:
         final = outfunc
 
