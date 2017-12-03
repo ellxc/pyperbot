@@ -16,7 +16,8 @@
     "spam_filter": {},
     "seval_plugin": {},
     "xargs": {},
-    "help": {}
+    "help": {},
+    "reminders": {}
   },
   "servers": [
     {
