@@ -1,4 +1,7 @@
-crontab==0.22.0
-pyparsing==2.2.0
-python-dateutil==2.6.1
+crontab
+pyparsing
+python-dateutil
+async-timeout
+aiohttp
+aioconsole
 git+https://github.com/ellxc/seval.git

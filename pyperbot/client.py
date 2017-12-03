@@ -2,7 +2,7 @@ import asyncio
 import logging
 from pyperbot.Message import Message
 from pyperbot.events import EventManager
-
+import async_timeout
 
 class Recconnect(Exception):
     pass
@@ -57,7 +57,8 @@ class IrcClient(asyncio.Protocol):
     async def timeoutshim(self, delay=300):
         while 1:
             try:
-                await asyncio.wait_for(self.timeout, timeout=delay)
+                with async_timeout.timeout(delay):
+                    await self.timeout
                 self.timeout = self.loop.create_future()
             except asyncio.TimeoutError:
                 print("no message received in %s seconds, attempting to reconnect" % delay)

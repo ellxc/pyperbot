@@ -1,6 +1,5 @@
-
 import asyncio
-
+import async_timeout
 from pyperbot.util import async_pipe, PipeClosed
 
 
@@ -46,8 +45,9 @@ class PipeManager:
         pipe_sections = asyncio.gather(*tasks, loop=loop if loop is not None else self.loop, return_exceptions=True)
 
         try:
-            x = await asyncio.wait_for(pipe_sections, timeout=timeout, loop=loop if loop is not None else self.loop)
-            return out, x
+            with async_timeout.timeout(timeout):
+                x = await pipe_sections
+                return out, x
         except asyncio.TimeoutError:
             pipe_sections.cancel()
             raise TimeoutError()

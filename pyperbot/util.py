@@ -8,6 +8,7 @@ from collections import MutableMapping
 from concurrent.futures import Future, ProcessPoolExecutor
 from contextlib import contextmanager
 from logging import Handler
+import async_timeout
 
 
 class PipeClosed(Exception):
@@ -33,7 +34,8 @@ async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
         await asyncio.wrap_future(futr)
     else:
         try:
-            await asyncio.wait_for(asyncio.wrap_future(futr), timeout=timeout)
+            with async_timeout.timeout(timeout):
+                await asyncio.wrap_future(futr)
         except asyncio.TimeoutError:
             ctypes.pythonapi.PyThreadState_SetAsyncExc(t, ctypes.py_object(TimeoutError))
             raise TimeoutError()
@@ -49,7 +51,8 @@ async def schedproccedfunc(func, *args, timeout=None, **kwargs):
         await asyncio.wrap_future(f)
     else:
         try:
-            await asyncio.wait_for(asyncio.wrap_future(f), timeout=timeout)
+            with async_timeout.timeout(timeout):
+                await asyncio.wrap_future(f)
         except asyncio.TimeoutError:
             x.shutdown(wait=False)
             raise TimeoutError()
