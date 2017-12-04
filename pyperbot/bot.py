@@ -592,52 +592,9 @@ if __name__ == "__main__":
     bot = Pyperbot.from_config(argv[1])
     try:
         if '-i' in argv:
-            from prompt_toolkit.interface import CommandLineInterface
-            from prompt_toolkit.shortcuts import create_prompt_application, create_asyncio_eventloop
-            from aioconsole import aexec
-            import asyncio
-            import sys
-            import traceback
+            from pyperbot.shell import interactive_shell
 
-            eventloop = create_asyncio_eventloop()
-            cli = CommandLineInterface(
-                application=create_prompt_application(':> '),
-                eventloop=eventloop)
-
-            sys.stdout = cli.stdout_proxy()
-
-            async def interactive_shell():
-                while True:
-                    try:
-                        result = await cli.run_async()
-                        if result.text.startswith("#"):
-                            parse = total.parseString(result.text[1:], parseAll=True)
-                            try:
-                                resp = await bot.run_parse(parse, Message(server='SHELL'))
-                                for res in resp:
-                                    print(res.text)
-                            except PipeError as e:
-                                for loc, err in sorted(e.exs, key=lambda x: x[0]):
-                                    if isinstance(err, PipeError):
-                                        for loc2, err2 in sorted(err.exs, key=lambda x: x[0]):
-                                            try:
-                                                raise err2
-                                            except Exception:  # how to print to terminal
-                                                traceback.print_exc()
-                                    else:
-                                        try:
-                                            raise err
-                                        except Exception:  # how to print to terminal
-                                            traceback.print_exc()
-                        else:
-                            try:
-                                await aexec(result.text, local={'bot': bot})
-                            except Exception:
-                                traceback.print_exc()
-                    except (EOFError, KeyboardInterrupt):
-                        return
-
-            asyncio.ensure_future(interactive_shell())
+            asyncio.ensure_future(interactive_shell(bot))
         bot.run()
     except KeyboardInterrupt:
         bot.sync()
