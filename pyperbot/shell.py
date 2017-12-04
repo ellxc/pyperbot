@@ -20,7 +20,7 @@ class myCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         if document.text.startswith("#"):
-            return WordCompleter(self.bot.commands)
+            return WordCompleter(self.bot.commands).get_completions(document, complete_event)
         else:
             return self.pythoncompleter.get_completions(document, complete_event)
 
