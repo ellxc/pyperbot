@@ -61,4 +61,4 @@ async def interactive_shell(bot):
                 except Exception:
                     traceback.print_exc()
         except (EOFError, KeyboardInterrupt):
-            return
+            bot.loop.stop()
