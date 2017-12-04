@@ -10,8 +10,7 @@ import traceback
 from pyperbot.pyperparser import total
 from pyperbot.piping import PipeError
 from pyperbot.Message import Message
-
-
+from itertools import chain
 
 class myCompleter(Completer):
     def __init__(self, bot):
@@ -20,7 +19,7 @@ class myCompleter(Completer):
 
     def get_completions(self, document, complete_event):
         if document.text.startswith("#"):
-            return WordCompleter(self.bot.commands).get_completions(document, complete_event)
+            return WordCompleter(chain(self.bot.commands, self.bot.aliases)).get_completions(document, complete_event)
         else:
             return self.pythoncompleter.get_completions(document, complete_event)
 
