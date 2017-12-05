@@ -237,7 +237,6 @@ def wrapinner(func, admin=False):
     elif inspect.isasyncgenfunction(func):
         @functools.wraps(func)
         async def outfunc(this, *_, out):
-            print("outfunc", _)
             async for z in func(this, *_):
                 out.send(z)
     elif inspect.isgeneratorfunction(func):
