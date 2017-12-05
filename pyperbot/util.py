@@ -24,7 +24,10 @@ class ItemAdded(Exception):
 
 
 def run_future(func, futr, *args, **kwargs):
-    return futr.set_result(func(*args, **kwargs))
+    try:
+        return futr.set_result(func(*args, **kwargs))
+    except Exception as e:
+        futr.set_exception(e)
 
 
 async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
@@ -39,6 +42,8 @@ async def schedthreadedfunc(func, *args, timeout=None, **kwargs):
         except asyncio.TimeoutError:
             ctypes.pythonapi.PyThreadState_SetAsyncExc(t, ctypes.py_object(TimeoutError))
             raise TimeoutError()
+    if futr.exception():
+        raise futr.exception()
     return futr.result()
 
 
