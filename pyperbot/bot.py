@@ -462,7 +462,10 @@ class Pyperbot:
             stop = None if s.stop is None else int(s.stop)
             step = None if s.step is None else int(s.step)
             try:
-                return [q for q in preargs[slice(start, stop, step)]]
+                if isinstance(preargs, (str, bytes)):
+                    return [preargs[slice(start, stop, step)]]
+                else:
+                    return [q for q in preargs[slice(start, stop, step)]]
             except IndexError as e:
                 raise IndexError(("missing arg %s :" % start) + str(e))
         else:
