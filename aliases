@@ -6,3 +6,6 @@ choose=echo !:: | > random.choice(msg.data) if "beer" not in msg.data else "beer
 glue=echo !:0 is now glued to !:1
 glueall=nicks | > [[a, b] for a in msg.data for b in msg.data if a != b] | iterate | flatten | xargs -s 'glue !::'
 rrainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle(random.sample(range(1, 20), k=8)), "!::" or msg.text or 'rainbow')) | str
+hometime=> "It is" + "".join([" not! " + str(datetime.combine(date.today(), y) - datetime.now()).split(".")[0] + " remaining" for y in [x.time() if x.tzinfo is None else x.astimezone() for x in [dateparse(self["hometime"] if "hometime" in self else "17pm")]] if y > datetime.now().time()]) + "!" | str
+ning=> hour = datetime.now().hour; day = datetime.now().timetuple().tm_yday; ("New Years Even" if day >= 365 else "Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+"ing"  + ((" "+"!::") if "!::" else "")+"." | str
+ningaling=> hour = datetime.now().hour; ("Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+ "ing" + "".join(random.sample(["aling","ading","dong","ling"],random.randint(0,4))) +"adingdong" + ((" "+"!::") if "!::" else "")+"." | str
