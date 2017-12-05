@@ -65,7 +65,7 @@ class Core:
 
     @pipeinable_command
     def str(self, args, each):
-        return each.reply(text=str(each.data if each.data is not None else each.text))
+        return each.reply(str(each.data if each.data is not None else each.text))
 
     @command
     def echo(self, msg):

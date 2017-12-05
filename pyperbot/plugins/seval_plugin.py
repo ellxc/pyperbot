@@ -1,6 +1,8 @@
 import copy
 from collections import ChainMap
-
+from seval.global_env import globalenv
+from dateutil import parser
+globalenv.update(dateparse=parser.parse)
 from seval.seval import parse_string
 
 from pyperbot.piping import PipeClosed
