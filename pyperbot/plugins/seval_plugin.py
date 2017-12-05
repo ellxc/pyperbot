@@ -22,14 +22,16 @@ class Seval:
                              copy.deepcopy(self.bot.userspaces[args.server]) if args.server in self.bot.userspaces else {}, self.bot.envs), args.text)
                 called = True
                 if response:
-                    outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
+                    for r in response:
+                        outpipe.send(args.reply(data=r, str_fn=repr))
         except PipeClosed:
             if not called:
                 response, _ = parse_string(
                     ChainMap(self.bot.env, {"msg": args.reply()}, {"self": self.bot.userspaces[args.server][args.nick]} if args.server in self.bot.userspaces else {},
                              copy.deepcopy(self.bot.userspaces[args.server]) if args.server in self.bot.userspaces else {}, self.bot.envs), args.text)
                 if response:
-                    outpipe.send(args.reply(data=response, str_fn=lambda x: "; ".join(map(repr, x))))
+                    for r in response:
+                        outpipe.send(args.reply(data=r, str_fn=repr))
         finally:
             outpipe.close()
             inpipe.close()
