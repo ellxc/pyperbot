@@ -3,6 +3,7 @@ import logging
 from pyperbot.Message import Message
 from pyperbot.events import EventManager
 import async_timeout
+from collections import defaultdict
 
 class Recconnect(Exception):
     pass
@@ -30,7 +31,9 @@ class IrcClient(asyncio.Protocol):
         self.servername = servername or host
         self.reconnect = reconnect
         self.serverconf = {}
-        # self.nicks =
+        self.nicks = defaultdict(set)
+        self.ops = defaultdict(set)
+        self.voices = defaultdict(set)
 
         if loop is None:
             loop = asyncio.get_event_loop()
@@ -42,10 +45,13 @@ class IrcClient(asyncio.Protocol):
 
         base_events = [
             ("PING", lambda **kwargs: self.send(kwargs['message'].reply(command="PONG", text=kwargs['message'].text))),
-            ("433", lambda **kwargs: self.send(
-                Message(command='NICK', params=kwargs["message"].params.split()[-1] + "_"))),
+            ("433", self.handleNickerror),
             ('005', lambda message: self.serverconf.update(
-                {k: v for x in message.params.split() for k, _, v in [x.partition('=')]}))
+                {k: v for x in message.params.split() for k, _, v in [x.partition('=')]})),
+            ('353', self.handleNicks),
+            ('PART', self.handleleave),
+            ('QUIT', self.handleleave),
+            ('JOIN', self.handleJoin)
         ]
 
         for event, fn in base_events:
@@ -53,6 +59,29 @@ class IrcClient(asyncio.Protocol):
 
         self.timeout = self.loop.create_future()
         self.loop.create_task(self.timeoutshim())
+
+    def handleNickerror(self, message):
+        nick = message.params.split()[-1] + "_"
+        self.nick = nick
+        self.send(Message(command='NICK', params=nick))
+
+    def handleNicks(self, message):
+        for n in message.text.split():
+            if n.startswith("@"):
+                n = n[1:]
+                self.ops[message.params.split()[-1]].add(n)
+            if n.startswith("+"):
+                n = n[1:]
+                self.voices[message.params.split()[-1]].add(n)
+            self.nicks[message.params.split()[-1]].add(n)
+
+    def handleJoin(self, message):
+        self.nicks[message.text].add(message.nick)
+
+    def handleleave(self, message):
+        self.ops[message.params].discard(message.nick)
+        self.voices[message.params].discard(message.nick)
+        self.nicks[message.params].discard(message.nick)
 
     async def timeoutshim(self, delay=300):
         while 1:
