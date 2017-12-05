@@ -10,9 +10,48 @@ class Core:
         self.bot = bot
         self.config = config
 
+    @complexcommand
+    async def tail(self, initial, inpipe, outpipe):
+        if initial.data:
+            level = int(initial.data[0])
+        else:
+            level = 1
+
+        cot = []
+        try:
+            while 1:
+                x = await inpipe.recv()
+                cot.append(x)
+        except PipeClosed:
+            for m, _ in zip(reversed(cot), range(level)):
+                outpipe.send(m)
+        finally:
+            outpipe.close()
+            inpipe.close()
+
+    @complexcommand
+    async def head(self, initial, inpipe, outpipe):
+        if initial.data:
+            level = int(initial.data[0])
+        else:
+            level = 1
+        try:
+            while 1:
+                x = await inpipe.recv()
+                if level > 0:
+                    outpipe.send(x)
+                    level -= 1
+                else:
+                    outpipe.close()
+        except PipeClosed:
+            pass
+        finally:
+            outpipe.close()
+            inpipe.close()
+
     @command
     def nicks(self, msg):
-        nicks = set(self.bot.clients[msg.server].nicks[msg.params])
+        nicks = list(self.bot.clients[msg.server].nicks[msg.params])
         return msg.reply(data=nicks)
 
     @pipeinable_command
@@ -44,8 +83,8 @@ class Core:
     @pipeinable_command
     def iterate(self, args, msg):
         """iterate through msg.data and create a new message for each one"""
-        if args.text:
-            level = int(args.text)
+        if args.data:
+            level = int(args.data)
         else:
             level = 1
 
