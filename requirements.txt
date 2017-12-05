@@ -2,6 +2,8 @@ crontab
 pyparsing
 python-dateutil
 async-timeout
-aiohttp
 aioconsole
+prompt-toolkit
+ptpython
 git+https://github.com/ellxc/seval.git
+-r pluginRequirements.txt
