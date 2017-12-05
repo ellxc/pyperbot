@@ -449,7 +449,7 @@ class Pyperbot:
             except KeyError as e:
                 raise KeyError("No such user: " + str(e))
         elif arg_type == "starred":
-            [a] = await self.do_arg(s, initial, offset=offset + loc)
+            [a] = await self.do_arg(s, initial, offset=offset + loc, preargs=preargs)
             return [n for n in a]
         elif arg_type == "arg_index":
             index = int(s.index)

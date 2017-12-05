@@ -20,7 +20,7 @@ doublequote = pyp.dblQuotedString.addParseAction(lambda l, t: ("doublequote", l,
 backquote = pyp.QuotedString(quoteChar='`', escChar='\\').addParseAction(lambda l, t: ("backquote", l, t[0]))
 starred = pyp.Forward()
 starred << (pyp.Suppress(pyp.Literal("*")) + pyp.MatchFirst(
-    (starred, doublequote, singlequote, t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(
+    (starred, t_arg_index, t_arg_range, doublequote, singlequote, t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(
     lambda l, t: ("starred", l, t[0])))
 escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`'))).addParseAction(lambda l, t: ("escaped", l, t[0]))
 cmd_arg << pyp.MatchFirst((t_arg_range, t_arg_index, starred, t_msg_buffer, t_bracketvar, t_nakedvar, singlequote,
