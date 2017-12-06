@@ -37,14 +37,14 @@ class Message:
             if val.startswith("\001"):
                 cmd, *val = val.split(" ")
                 val = " ".join(val)
-                self.ctcp = cmd
+                self.ctcp = cmd[1:]
                 if val.endswith("\001"):
                     val = val[:-1]
         self._text = val
 
     @property
     def command(self):
-        return "CTCP:"+self.ctcp[1:] if self.ctcp else self._command
+        return "CTCP:"+self.ctcp if self.ctcp else self._command
 
     @command.setter
     def command(self, val):
@@ -87,7 +87,7 @@ class Message:
                 self.server,
                 (" <" + self.nick + "(" + self.user + ("@" if self.user else "") + self.domain + ")" + ">")
                 if self.domain else "",
-                "CTCP:"+self.ctcp[1:] if self.ctcp else self.command,
+                "CTCP:"+self.ctcp if self.ctcp else self.command,
                 self.params,
                 bytes(self.text, "utf-8")[:550].decode(),
             )
