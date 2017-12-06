@@ -18,7 +18,7 @@ from pyperbot.client import IrcClient
 from pyperbot.events import EventManager
 from pyperbot.piping import PipeManager, PipeError
 from pyperbot.pyperparser import total, inners, pipeline as pipline
-from pyperbot.util import MutableNameSpace, ResultingCallTooLong, aString, ShitHandler
+from pyperbot.util import MutableNameSpace, ResultingCallTooLong, aString, bString, ShitHandler
 
 Plugin = namedtuple('plugin',
                     'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, '
@@ -374,7 +374,7 @@ class Pyperbot:
         locs = []
         for (func, args, start) in await self.funcs_n_args(pipeline, initial, offset=offset, preargs=preargs):
             cmds_n_args.append((func, initial.reply(
-                text=" ".join(map(lambda d: "'%s'" % d if isinstance(d, aString) else str(d), args)), data=args)))
+                text=" ".join(map(lambda d: ("%s'%s'" % (d.type, d) if isinstance(d, bString) else "'%s'" % d) if isinstance(d, aString) else str(d), args)), data=args)))
             locs.append(start)
         if outputfilter:
             for outfilter in self.outputfilters:
@@ -420,6 +420,11 @@ class Pyperbot:
             return [aString(s)]
         elif arg_type == "singlequote":
             return [aString(s)]
+        elif arg_type == "pythonstring":
+            [a] = await self.do_arg(s[1], initial, offset=offset+loc, preargs=preargs)
+            b = bString(a)
+            b.settype(s[0])
+            return [b]
         elif arg_type == "msg_buffer":
             index, name = s.index, s.name
             if index is None:

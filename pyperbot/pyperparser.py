@@ -17,14 +17,16 @@ t_tilde = pyp.Suppress('~') + pyp.Regex(r'([^ |\'\"\\]|\\\\)+')
 t_tilde.addParseAction(lambda l, t: ("homedir", l, t[0]))
 singlequote = pyp.sglQuotedString.addParseAction(lambda l, t: ("singlequote", l, t[0][1:-1]))
 doublequote = pyp.dblQuotedString.addParseAction(lambda l, t: ("doublequote", l, t[0][1:-1]))
+pythonstring = (pyp.oneOf("r f b u", caseless=True) + (doublequote | singlequote))\
+    .addParseAction(lambda l, t: ("pythonstring", l, t[:2])).leaveWhitespace()
 backquote = pyp.QuotedString(quoteChar='`', escChar='\\').addParseAction(lambda l, t: ("backquote", l, t[0]))
 starred = pyp.Forward()
 starred << (pyp.Suppress(pyp.Literal("*")) + pyp.MatchFirst(
     (starred, t_arg_index, t_arg_range, doublequote, singlequote, t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(
     lambda l, t: ("starred", l, t[0])))
 escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`'))).addParseAction(lambda l, t: ("escaped", l, t[0]))
-cmd_arg << pyp.MatchFirst((t_arg_range, t_arg_index, starred, t_msg_buffer, t_bracketvar, t_nakedvar, singlequote,
-                           doublequote, backquote, escaped, t_tilde, t_word))
+cmd_arg << pyp.MatchFirst((pythonstring, t_arg_range, t_arg_index, starred, t_msg_buffer, t_bracketvar, t_nakedvar,
+                           singlequote, doublequote, backquote, escaped, t_tilde, t_word))
 cmd_name = (pyp.NotAny(pyp.Keyword("alias")) + pyp.Regex(r'([^ |\'\"\\]|\\\\)+')).setParseAction(
     lambda l, t: ("cmd_name", l, t[0]))
 command = (cmd_name + pyp.ZeroOrMore(cmd_arg)).addParseAction(lambda l, t: ("command", l, [x for x in t]))

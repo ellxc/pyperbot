@@ -323,6 +323,13 @@ class aString(str):
     pass
 
 
+class bString(aString):
+    type = 'r'
+
+    def settype(self, type):
+        self.type = type
+
+
 class NotAuthed(Exception):
     pass
 
