@@ -1,6 +1,6 @@
 # coding=utf-8
 import pyparsing as pyp
-
+pyp.ParserElement.enablePackrat()
 cmd_arg = pyp.Forward()
 t_word = pyp.Regex(r'([^ |\`\'\"\\]|\\\\)+').addParseAction(lambda l, t: ("t_word", l, t[0]))
 t_arg_index = pyp.Regex(r'\!\:(?P<index>-?\d+)')
@@ -24,7 +24,7 @@ starred = pyp.Forward()
 starred << (pyp.Suppress(pyp.Literal("*")) + pyp.MatchFirst(
     (starred, t_arg_index, t_arg_range, doublequote, singlequote, t_bracketvar, t_nakedvar, backquote, t_tilde)).addParseAction(
     lambda l, t: ("starred", l, t[0])))
-escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`'))).addParseAction(lambda l, t: ("escaped", l, t[0]))
+escaped = pyp.Combine(pyp.Suppress("\\") + pyp.Or(("'", '"', '`', '|'))).addParseAction(lambda l, t: ("escaped", l, t[0]))
 cmd_arg << pyp.MatchFirst((pythonstring, t_arg_range, t_arg_index, starred, t_msg_buffer, t_bracketvar, t_nakedvar,
                            singlequote, doublequote, backquote, escaped, t_tilde, t_word))
 cmd_name = (pyp.NotAny(pyp.Keyword("alias")) + pyp.Regex(r'([^ |\'\"\\]|\\\\)+')).setParseAction(
