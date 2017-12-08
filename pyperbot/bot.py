@@ -387,7 +387,7 @@ class Pyperbot:
         for err, location in zip(x, locs):
             if isinstance(res, PipeError):
                 errs.extend(res.exs)
-            elif isinstance(err, SyntaxError):
+            elif isinstance(err, SyntaxError) and err.offset is not None:
                 errs.append((location + err.offset, err))
             elif isinstance(err, Exception):
                 errs.append((location, err))
