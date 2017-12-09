@@ -1,11 +1,21 @@
-rainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle([5,4,7,3,12,6,13]), "!::" or msg.text or 'rainbow')) | str
-choo=> ("!::").split() or msg.data or 'CHOO CHOO'.split() | > " _||__;--: "+" ".join(":-"+"-"*max(4,len(x))+"-:" for x in msg.data);"(        | "+" ".join("| "+x.center(4)+" |" for x in msg.data);"/-(@)--(@)~"+"~".join("(@)"+"-"*max(2,len(x)-2)+"(@)" for x in msg.data) | str
-rchoo=choo !:: | rainbow
-bored=> self.setdefault("bored",0);self.bored+=1;self.bored | > msg.data[-1] | strfrmt your bored count is now {}!
-choose=echo !:: | > random.choice(msg.data) if "beer" not in msg.data else "beer" | strfrmt I CHOSE: {}
+rainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle([5,4,7,3,12,6,13]), "*!::" or msg.text or 'rainbow')) | str
+choo=> ("*!::").split() or msg.data or 'CHOO CHOO'.split() | > " _||__;--: "+" ".join(":-"+"-"*max(4,len(x))+"-:" for x in msg.data);"(        | "+" ".join("| "+x.center(4)+" |" for x in msg.data);"/-(@)--(@)~"+"~".join("(@)"+"-"*max(2,len(x)-2)+"(@)" for x in msg.data) | str
+rchoo=choo *!:: | rainbow
+bored=> self.setdefault("bored",0);self.bored+=1;self.bored | tail | format your bored count is now {}!
+choose=echo *!:: | > random.choice(msg.data) if "beer" not in msg.data else "beer" | format I CHOSE: {}
 glue=echo !:0 is now glued to !:1
-glueall=nicks | > [[a, b] for a in msg.data for b in msg.data if a != b] | iterate | flatten | xargs -s 'glue !::'
-rrainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle(random.sample(range(1, 20), k=8)), "!::" or msg.text or 'rainbow')) | str
+glueall=nicks | > [[a, b] for a in msg.data for b in msg.data if a != b] | iterate | flatten | xargs -s 'glue *!::'
+rrainbow=> ''.join(' ' if c == ' ' else '\3%0*d%c' % ((2 if c in '0123456789' else 1), n, c) for (n, c) in zip(itertools.cycle(random.sample(range(1, 20), k=8)), "*!::" or msg.text or 'rainbow')) | str
 hometime=> "It is" + "".join([" not! " + str(datetime.combine(date.today(), y) - datetime.now()).split(".")[0] + " remaining" for y in [x.time() if x.tzinfo is None else x.astimezone() for x in [dateparse(self["hometime"] if "hometime" in self else "17pm")]] if y > datetime.now().time()]) + "!" | str
-#alias ning = > hour = datetime.now().hour; day = datetime.now().timetuple().tm_yday; ("New Years Even" if day >= 365 else "Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+"ing"  + ((" "+("!::" or msg.text)) if "!::" or msg.text else "")+"." | str
-ningaling=> hour = datetime.now().hour; ("Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+ "ing" + "".join(random.sample(["aling","ading","dong","ling"],random.randint(0,4))) +"adingdong" + ((" "+"!::") if "!::" else "")+"." | str
+ning=> hour = datetime.now().hour; day = datetime.now().timetuple().tm_yday; ("New Years Even" if day >= 365 else "Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+"ing"  + ((" "+("*!::" or msg.text)) if "*!::" or msg.text else "")+"." | str
+ningaling=> hour = datetime.now().hour; ("Morn" if hour < 12 else "Afternoon" if hour < 18 else "Even")+ "ing" + "".join(random.sample(["aling","ading","dong","ling"],random.randint(0,4))) +"adingdong" + ((" "+"*!::") if "*!::" else "")+"." | str
+dank=> "born too late to explore the planet"; "born too soon to explore the galaxy"; "born just in time to explore dank memes" | str
+8ball=> random.choice(["it is Certain","It is decidedly so","Outlook good","Yes.","Ask again later","Better not tell you...","Don't count on it","My Sources say no","Very doubtful","No."]) | str
+bunu_factor=> karma.get('bunu',0)/karma.get('zebr',0) | format {:.2f}
+horse=> "      ,//)"; "    ,;;' \\";"   ,;;' ( '\\";"      / '\\_)" | str
+aesthetic=> "".join(chr(ord(x) + 65248) if ord(x) >= ord('!') and ord(x) <= ord('~') else x for x in ("*!::" or "!^")) | str
+?=help *!::
+spooky=> _ = int("*!::1" or random.choice(range(1,7)));__ = "!:1:" or _ + 2; "{}spooky{}me".format(_,__) | str
+glasses=> "(•_•)";"( •_•)>⌐■-■";"(⌐■_■)" | str
+interjection=> "I'd just like to interject for a moment. What you’re referring to as {0}, is in fact, GNU/{0}, or as I’ve recently taken to calling it, GNU plus {0}.".format("*!:0:" or "".join(msg.text.split()[:1]) or "Linux") | str
+fade=> "".join(a+(" "*math.floor(math.log(i+3))) for i,a in enumerate("*!::" or msg.text or "fading away")) | str

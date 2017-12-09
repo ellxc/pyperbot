@@ -320,7 +320,9 @@ class ResultingCallTooLong(Exception):
 
 
 class aString(str):
-    pass
+
+    def quotetype(self, qtype):
+        self.qtype = qtype
 
 
 class bString(aString):

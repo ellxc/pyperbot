@@ -45,22 +45,17 @@ class Xargs:
                 strpipe = True
                 pipeline = args.data[1]
             else:
-                pipeline = [args.data]
+                pipeline = args.text
             while 1:
                 x = await inpipe.recv()
                 if strpipe:
                     parse = total.parseString(pipeline, parseAll=True)
                     try:
-                        await self.bot.run_parse(parse, x, callback=outpipe.send, preargs=x.data)
+                        await self.bot.run_parse(parse, x, callback=outpipe.send, preargs=x.data, recursion_limit=2)
                     except PipeError as e:
-                        offset = 6 + args.text.index("'") + 1
-                        raise PipeError([(loc + offset, err) for loc, err in e.exs])
+                        raise PipeError([(0, err) for loc, err in e.exs])
                 else:
-                    pass
-                    # temp = []
-                    # async for shit in self.funcs_n_args(pipeline, x):
-                    #     temp.append(shit)
-                    # await self.bot.PipeManager.run_pipe(temp, callback=outpipe.send)
+                    raise NotImplementedError("please use the -s option for now")
         except PipeClosed:
             pass
         finally:

@@ -55,13 +55,18 @@ class Core:
         return msg.reply(data=nicks)
 
     @pipeinable_command
-    def strfrmt(self, args, each):
+    def format(self, args, each):
         """will format the string with any passed in data"""
         if isinstance(each.data, Mapping):
-            return each.reply(text=args.text.format(**each.data))
+            return each.reply(text=args.text.format(**each.data), data=each.data)
         if isinstance(each.data, Iterable) and not isinstance(each.data, (str, bytes)):
-            return each.reply(text=args.text.format(*each.data))
-        return each.reply(text=args.text.format(each.data))
+            return each.reply(text=args.text.format(*each.data), data=each.data)
+        return each.reply(text=args.text.format(each.data), data=each.data)
+
+    @pipeinable_command("%")
+    def cformat(self, args, each):
+        """will % format the string with any passed in data"""
+        return each.reply(text=args.text % (each.data), data=each.data)
 
     @pipeinable_command
     def str(self, args, each):
