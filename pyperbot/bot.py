@@ -264,10 +264,10 @@ class Pyperbot:
         return ChainMap(*[{name: func() for name, func in x.envs.items()} for x in self.plugins.values()])
 
     def get_env(self, message):
-        ChainMap(self.env, {"self": self.userspaces[message.server][message.nick]} if message.server in self.userspaces else {},
-                 copy.deepcopy(self.userspaces[message.server]) if message.server in self.userspaces else {},
-                 self.envs, {"buffer"})
-        ChainMap(self.env, {"self": self.userspaces[message.server][message.nick]}, self.envs)
+        users = copy.deepcopy(self.userspaces[message.server]) if message.server in self.userspaces else {}
+        _self = self.userspaces[message.server][message.nick] if message.server in self.userspaces else {}
+
+        return ChainMap(self.env, {"self": _self, "users": users}, self.envs, users)
 
     def sync(self):
         for func in self.syncs:

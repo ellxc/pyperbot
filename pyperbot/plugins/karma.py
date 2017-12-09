@@ -1,6 +1,6 @@
 import re
 import shelve
-
+from collections import defaultdict
 from pyperbot.wrappers import plugin, command, env, regex, onload, unload, sync, cron
 
 
@@ -41,7 +41,7 @@ class Karma:
 
     @env('karma')
     def env(self):
-        return {n: k for n, k in self.store.items()}
+        return defaultdict(lambda: 0, **{n: k for n, k in self.store.items()})
 
     @regex(r"\S+(?:\+\+|--)")
     def regex(self, msg, match):
