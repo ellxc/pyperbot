@@ -336,6 +336,10 @@ class NotAuthed(Exception):
     pass
 
 
+class ExceededRateLimit(Exception):
+    pass
+
+
 class ShitHandler(Handler):
     """
     A handler class which writes logging records, appropriately formatted,

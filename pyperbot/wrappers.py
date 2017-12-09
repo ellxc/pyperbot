@@ -3,8 +3,8 @@ import inspect
 
 import crontab
 
-from pyperbot.util import PipeClosed, NotAuthed
-
+from pyperbot.util import PipeClosed, NotAuthed, ExceededRateLimit
+from collections import deque
 
 def plugin(_class):
     _class._plugin = True
@@ -219,7 +219,7 @@ def complexcommand(word=None):
         return wrapper
 
 
-def wrapinner(func, admin=False):
+def wrapinner(func, admin=False, rate_limit_no=0, rate_limit_period=10):
     sig = inspect.signature(func)
     # params = len(sig.parameters)
     #
@@ -252,19 +252,32 @@ def wrapinner(func, admin=False):
             if y is not None:
                 out.send(y)
 
+    if rate_limit_no:
+        limiter = deque(maxlen=rate_limit_no)
+        @functools.wraps(func)
+        async def ratelimted(this, *args, out):
+            if len(limiter) == rate_limit_no and (args[0].timestamp - limiter[0]).total_seconds() < rate_limit_period:
+                raise ExceededRateLimit("command '%s' is rate limited to %d calls every %d seconds" %
+                                        (func.__name__, rate_limit_no, rate_limit_period))
+            limiter.append(args[0].timestamp)
+            return await outfunc(this, *args, out=out)
+    else:
+        ratelimted = outfunc
+
     if admin:
+        @functools.wraps(func)
         async def final(this, *args, out):
             if await this.bot.is_authed(args[0]):
-                return await outfunc(this, *args, out=out)
+                return await ratelimted(this, *args, out=out)
             else:
                 raise NotAuthed("you are not an admin!")
     else:
-        final = outfunc
+        final = ratelimted
 
     return final
 
 
-def command(word=None, admin=False):  # multilevel wrapper drifting
+def command(word=None, admin=False, rate_limit_no=0, rate_limit_period=10):  # multilevel wrapper drifting
 
     def wrapper(_func):
 
@@ -280,7 +293,7 @@ def command(word=None, admin=False):  # multilevel wrapper drifting
             return _func
         _func._commands = [name]
 
-        outfunc = wrapinner(_func, admin=admin)
+        outfunc = wrapinner(_func, admin=admin, rate_limit_no=rate_limit_no, rate_limit_period=rate_limit_period)
 
         @functools.wraps(_func)
         async def inner(this, args, inpipe, outpipe):
@@ -301,7 +314,7 @@ def command(word=None, admin=False):  # multilevel wrapper drifting
         return wrapper
 
 
-def pipeinable_command(word = None):
+def pipeinable_command(word=None, admin=False, rate_limit_no=0, rate_limit_period=10):
 
     def wrapper(_func):
         if inspect.isfunction(word):
@@ -316,13 +329,24 @@ def pipeinable_command(word = None):
 
         outfunc = wrapinner(_func)
 
+        if rate_limit_no:
+            limiter = deque(maxlen=rate_limit_no)
+
         @functools.wraps(_func)
         async def inner(this, args, inpipe, outpipe):
-            ranonce = False
+            if admin:
+                if not await this.bot.is_authed(args[0]):
+                    raise NotAuthed("you are not an admin!")
+
             try:
                 while 1:
                     x = await inpipe.recv()
-                    ranonce = True
+                    if rate_limit_no:
+                        if len(limiter) == rate_limit_no and \
+                                        (x.timestamp - limiter[0]).total_seconds() < rate_limit_period:
+                            raise ExceededRateLimit("command '%s' is rate limited to %d calls every %d seconds" %
+                                                    (_func.__name__, rate_limit_no, rate_limit_period))
+                        limiter.append(x.timestamp)
                     await outfunc(this, args, x, out=outpipe)
             except PipeClosed:
                 pass  # pipe ended
