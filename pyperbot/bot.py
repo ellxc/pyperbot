@@ -267,7 +267,7 @@ class Pyperbot:
         users = copy.deepcopy(self.userspaces[message.server]) if message.server in self.userspaces else {}
         _self = self.userspaces[message.server][message.nick] if message.server in self.userspaces else {}
 
-        return ChainMap(self.env, {"self": _self, "users": users}, self.envs, users)
+        return ChainMap(self.env, {"self": _self, "users": users, "msg":message}, self.envs, users)
 
     def sync(self):
         for func in self.syncs:
