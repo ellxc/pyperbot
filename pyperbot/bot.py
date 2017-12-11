@@ -421,14 +421,14 @@ class Pyperbot:
             except KeyError as e:
                 raise NameError("Name %s is not defined" % e)
         elif arg_type == "backquote":
-            res = await self.run_parse(total.parseString(s, parseAll=True), initial, offset=loc + offset + 1, recursion_limit=recursion_limit-1)
+            res = await self.run_parse(total.parseString(s, parseAll=True), initial, preargs=preargs, offset=loc + offset + 1, recursion_limit=recursion_limit-1)
             x = list(map(lambda m: m.data, res))
             return [x]
         elif arg_type == "doublequote":
             for x in reversed(list(inners.scanString(s))):
                 toks, start, end = x
                 b = " ".join(
-                    str(b) for b in await self.do_arg(toks[0], initial, offset=offset + loc, preargs=preargs, recursion_limit=recursion_limit-1))
+                    str(b).replace('"', '\\"') for b in await self.do_arg(toks[0], initial, offset=offset + loc, preargs=preargs, recursion_limit=recursion_limit-1))
                 s = s[:start] + str(b) + s[end:]
             a = aString(s)
             a.quotetype('"')
