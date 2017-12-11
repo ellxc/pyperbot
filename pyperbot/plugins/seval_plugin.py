@@ -19,14 +19,14 @@ class Seval:
         try:
             while 1:
                 x = await inpipe.recv()
-                response, _ = parse_string(self.bot.get_env(args), args.text)
+                response, _ = parse_string(self.bot.get_env(x), args.text)
                 called = True
                 if response:
                     for r in response:
                         outpipe.send(args.reply(data=r, str_fn=repr))
         except PipeClosed:
             if not called:
-                response, _ = parse_string(self.bot.get_env(args), args.text)
+                response, _ = parse_string(self.bot.get_env(args.reply()), args.text)
                 if response:
                     for r in response:
                         outpipe.send(args.reply(data=r, str_fn=repr))
