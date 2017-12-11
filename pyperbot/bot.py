@@ -102,7 +102,7 @@ class Pyperbot:
         temp.em.name = servername
         if channels:
             temp.em.register_handler("001",
-                                     lambda **kwargs: temp.send(Message(command="JOIN", params=", ".join(channels))))
+                                     lambda **kwargs: temp.send(Message(command="JOIN", params=",".join(channels))))
 
         self.loop.run_until_complete(temp.connect())
         self.clients[servername] = temp
