@@ -68,6 +68,16 @@ class Countdown:
     def unload(self):
         self.store.close()
 
+    @command('score')
+    def cdscore(self, msg):
+        if not msg.data:
+            d = self.store.get(msg.server, {}).get(msg.nick, 0)
+            l = lambda data: "%s: your countdown score is %d" % (msg.nick, data)
+        else:
+            d = {nick: self.store.get(msg.server, {}).get(nick, 0) for nick in msg.data}
+            l = lambda data: "countdown score: " + ", ".join("%s: %d" % (nick, karma) for nick, karma in data.items())
+        return msg.reply(data=d, str_fn=l)
+
     @command('solve', rate_limit_no=1, rate_limit_period=30)
     def cdsolve(self, msg):
         print(msg.data)
