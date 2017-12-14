@@ -47,7 +47,7 @@ class Countdown:
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
-
+        self.store = {}
         if 'filename' in self.config:
             self.filename = self.config['filename']
         else:
@@ -107,7 +107,8 @@ class Countdown:
             numbers = sample(standard_big, 2) + sample(standard_small, 4)
             target = randint(1, 999)
 
-            yield msg.reply("game starting. The numbers are {}. The target is {}. you have 1 minute. go!".format(" ".join(str(n) for n in numbers), target))
+            yield msg.reply("game starting. The numbers are {}. The target is {}. you have 1 minute. go!"
+                            .format(" ".join(str(n) for n in numbers), target))
 
             attempts = []
             done = Future(loop=self.bot.loop)
@@ -125,8 +126,6 @@ class Countdown:
                         self.bot.send(msg.reply("Incorrect number used: {}".format(e.n)))
                     except Exception as e:
                         print(e)
-
-
 
             try:
                 self.bot.clients[msg.server].em.register_handler('PRIVMSG', attempt_handler)
@@ -159,11 +158,10 @@ class Countdown:
                     else:
                         pointstr = "too far away to win any points :("
 
-                    yield msg.reply("closest attempt is {} = {} made by {}. {}".format(closestmsg.text, closest, closestmsg.nick, pointstr))
+                    yield msg.reply("closest attempt is {} = {} made by {}. {}"
+                                    .format(closestmsg.text, closest, closestmsg.nick, pointstr))
                 else:
                     yield msg.reply("Times up! No attempts were made.")
             finally:
                 self.bot.clients[msg.server].em.deregister_handler('PRIVMSG', attempt_handler)
                 self.inprogress[msg.server][msg.params] = False
-
-
