@@ -1,3 +1,4 @@
 aiohttp
 beautifulsoup4
 wikipedia
+git+https://github.com/ellxc/countdownsolver.git
