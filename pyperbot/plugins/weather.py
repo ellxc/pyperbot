@@ -10,13 +10,18 @@ class Weather:
 
     @command(rate_limit_no=2)
     async def weather(self, message):
-        """Get the current weather using the https://darksky.net API.
+        """weather [location] -> Get the current weather using the https://darksky.net API. set default location in self.location
         """
         if not message.text:
-            geop = await self.geopip(message.domain)
-            long = geop['longitude']
-            lat = geop['latitude']
-            name = "{}, {}, {}, {}".format(geop['zip_code'], geop['city'], geop['region_name'], geop['country_name'])
+            if 'location' in self.bot.userspaces[message.server][message.nick]:
+                mapbox = await self.mapbox(self.bot.userspaces[message.server][message.nick]['location'])
+                long, lat = mapbox['center']
+                name = mapbox['place_name']
+            else:
+                geop = await self.geopip(message.domain)
+                long = geop['longitude']
+                lat = geop['latitude']
+                name = "{}, {}, {}, {}".format(geop['zip_code'], geop['city'], geop['region_name'], geop['country_name'])
         else:
             mapbox = await self.mapbox(message.text)
             long, lat = mapbox['center']
