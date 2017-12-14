@@ -282,7 +282,7 @@ class Pyperbot:
         if msg.server not in self.userspaces:
             self.userspaces[msg.server] = {}
         if msg.nick not in self.userspaces[msg.server]:
-            self.userspaces[msg.server][msg.nick] = MutableNameSpace(recurse=True)
+            self.userspaces[msg.server][msg.nick] = MutableNameSpace(recurse=False)
 
         if msg.text.startswith("#"):
             await self.parse_msg(msg)
@@ -392,7 +392,7 @@ class Pyperbot:
                 cmds_n_args.append((outfilter, initial))
         x = self.PipeManager.run_pipe(
             cmds_n_args, loop=None,
-            callback=callback)
+            callback=callback, timeout=300)
         res, x = await x
         errs = []
         for err, location in zip(x, locs):
