@@ -248,6 +248,7 @@ class MutableNameSpace(MutableMapping):
             return self._data[key]
         else:
             self._data[key] = default
+            return default
 
     def copy(self):
         return MutableNameSpace(self._data.copy(), recurse=self._recurse)
