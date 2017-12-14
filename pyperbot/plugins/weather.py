@@ -34,7 +34,7 @@ class Weather:
         precip = "{:.0f}% chance of {}.".format(current['precipProbability']*100, current.get('precipType', 'rain'))
         temp = "{}°C, feels like {}°C.".format(current['temperature'], current['apparentTemperature'])
         humid = "{:0.0f}% humidity.".format(current['humidity']*100)
-        winds = "{}mph winds going {}.".format(current['windSpeed'],
+        winds = "{}mph winds heading {}.".format(current['windSpeed'],
                                                directions[int((current['windBearing']+11.25) / 22/5)])
 
         r = " ".join((place, summary, precip, temp, humid, winds))
