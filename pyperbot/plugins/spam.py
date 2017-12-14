@@ -30,5 +30,5 @@ class Spam:
 
     @command("spam")
     def stopspam(self, message):
-        yield message.reply("sorry, I will be quiet for a while")
         self.spams[message.server][message.params] = datetime.now()
+        self.bot.send(message.reply("sorry, I will be quiet for a while"))
