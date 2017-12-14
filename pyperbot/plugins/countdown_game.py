@@ -162,6 +162,13 @@ class Countdown:
                                     .format(closestmsg.text, closest, closestmsg.nick, pointstr))
                 else:
                     yield msg.reply("Times up! No attempts were made.")
+
+                yield msg.reply("solving...")
+                solution, result = cd.solve(target, numbers)
+                msgstr = "solution: {} = {}"
+                if not result == target:
+                    msgstr = "closest " + msgstr
+                yield msg.reply(msgstr.format(solution, result))
             finally:
                 self.bot.clients[msg.server].em.deregister_handler('PRIVMSG', attempt_handler)
                 self.inprogress[msg.server][msg.params] = False
