@@ -15,11 +15,16 @@
     "core": {},
     "seval_plugin": {},
     "xargs": {},
-    "help": {},
     "reminders": {},
+    "help" : {},
     "wiki" : {"lang":"en"},
     "titlereader": {},
-    "sprunge": {}
+    "sprunge": {},
+    "sed": {},
+    "weather": {},
+    "countdown_game": {},
+    "spam": {},
+    "ignorelist": {"kentirc":["bar"]}
   },
   "servers": [
     {
