@@ -20,8 +20,8 @@ from pyperbot.pyperparser import total, inners, pipeline as pipline
 from pyperbot.util import MutableNameSpace, ResultingCallTooLong, aString, bString, ShitHandler
 
 Plugin = namedtuple('plugin',
-                    'instance, triggers, commands, regexes, crons, events, outputfilters, onloads, unloads, syncs, '
-                    'envs')
+                    'instance, triggers, commands, regexes, crons, events, inputfilters, outputfilters, onloads, '
+                    'unloads, syncs, envs')
 
 
 class Pyperbot:
@@ -175,6 +175,7 @@ class Pyperbot:
         triggers = {}
         regexes = {}
         commands = {}
+        inputfilters = []
         outputfilters = []
         onloads = []
         unloads = []
@@ -205,6 +206,8 @@ class Pyperbot:
             if hasattr(func, "_commands"):
                 for word in func._commands:
                     commands[word] = func
+            if hasattr(func, '_inputfilter'):
+                inputfilters.append(func)
             if hasattr(func, "_outputfilter"):
                 outputfilters.append((func._outputfilter, func))
             if hasattr(func, "_onload"):
@@ -217,8 +220,8 @@ class Pyperbot:
                 for env in func._envs:
                     envs[env] = func
         self.plugins[name] = Plugin(instance=instance, crons=crons, events=events, triggers=triggers, regexes=regexes,
-                                    commands=commands, outputfilters=outputfilters, onloads=onloads, unloads=unloads,
-                                    syncs=syncs, envs=envs)
+                                    commands=commands, inputfilters=inputfilters, outputfilters=outputfilters,
+                                    onloads=onloads, unloads=unloads, syncs=syncs, envs=envs)
         for x in onloads:
             self.loop.call_soon(x)
         for ev, ehs in events.items():
@@ -251,6 +254,10 @@ class Pyperbot:
         return ChainMap(*[p.crons for p in self.plugins.values()])
 
     @property
+    def inputfilters(self):
+        return [x for y in self.plugins.values() for x in y.inputfilters]
+
+    @property
     def outputfilters(self):
         return list(map(lambda x: x[1], sorted([x for y in self.plugins.values() for x in y.outputfilters],
                                                key=lambda x: x[0])))
@@ -279,28 +286,29 @@ class Pyperbot:
         pickle.dump(self.env, open("env.pickle", "wb"))
 
     async def handle_message(self, msg):
-        if msg.server not in self.userspaces:
-            self.userspaces[msg.server] = {}
-        if msg.nick not in self.userspaces[msg.server]:
-            self.userspaces[msg.server][msg.nick] = MutableNameSpace(recurse=False)
+        if all(map(lambda filter: filter(msg), self.inputfilters)):
+            if msg.server not in self.userspaces:
+                self.userspaces[msg.server] = {}
+            if msg.nick not in self.userspaces[msg.server]:
+                self.userspaces[msg.server][msg.nick] = MutableNameSpace(recurse=False)
 
-        if msg.text.startswith("#"):
-            await self.parse_msg(msg)
+            if msg.text.startswith("#"):
+                await self.parse_msg(msg)
 
-        for reg, funcs in self.regexes.items():
-            x = re.match(reg, msg.text)
-            if x:
+            for reg, funcs in self.regexes.items():
+                x = re.match(reg, msg.text)
+                if x:
+                    for func in funcs:
+                        x = func(msg, x)
+                        if inspect.isawaitable(x):
+                            await x
+
+            for trigger, funcs in self.triggers.items():
                 for func in funcs:
-                    x = func(msg, x)
-                    if inspect.isawaitable(x):
-                        await x
-
-        for trigger, funcs in self.triggers.items():
-            for func in funcs:
-                if trigger(msg):
-                    x = func(msg)
-                    if inspect.isawaitable(x):
-                        await x
+                    if trigger(msg):
+                        x = func(msg)
+                        if inspect.isawaitable(x):
+                            await x
 
         self.message_buffer[msg.server][msg.params].append(msg)
 

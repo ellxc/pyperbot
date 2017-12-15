@@ -77,6 +77,7 @@ def trigger(trigger_=None):
     else:
         return wrapper
 
+
 def regex(reg,flags=0):
     def wrapper(func):
         if hasattr(func, '_regexes'):
@@ -88,6 +89,11 @@ def regex(reg,flags=0):
     if type(reg) is not str:
         raise Exception("incorrect or no regex specified")
     return wrapper
+
+
+def inputfilter(func):
+    func._inputfilter = True
+    return func
 
 
 def outputfilter(priority=None):

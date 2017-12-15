@@ -1,4 +1,4 @@
-from pyperbot.wrappers import plugin, command, outputfilter
+from pyperbot.wrappers import plugin, command, outputfilter, inputfilter
 from datetime import datetime
 from collections import defaultdict
 from pyperbot.piping import PipeClosed
@@ -10,6 +10,13 @@ class Spam:
         self.bot = bot
         self.config = config
         self.spams = defaultdict(lambda: defaultdict(lambda: False))
+
+    @inputfilter
+    def inpspam(self, msg):
+        if self.spams[msg.server][msg.params]:
+            if not self.bot.is_authed(msg):
+                return False
+        return True
 
     @outputfilter
     async def spam(self, initial, inpipe, outpipe):
