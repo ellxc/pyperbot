@@ -32,6 +32,14 @@ class Admin:
         return msg.reply(text="reloaded plugin(s) " + msg.text)
 
     @command(admin=True)
+    def part(self, msg):
+        return msg.reply(command='PART')
+
+    @command(admin=True)
+    def joinchan(self, msg):
+        return msg.reply(command="JOIN", params=",".join(msg.data))
+
+    @command(admin=True)
     def exit(self, msg):
         """exits the bot, admin only"""
         self.bot.loop.stop()

@@ -70,10 +70,10 @@ class Message:
         text += self.text.rstrip("\n")
         return text
 
-    def reply(self, data=None, text=None, ctcp=None, command=None, str_fn=None):
+    def reply(self, data=None, text=None, ctcp=None, command=None, params=None, str_fn=None):
         return Message(server=self.server, nick=self.nick, command=self.command if command is None else command,
-                       domain=self.domain, ctcp=self.ctcp if ctcp is None else ctcp,
-                       user=self.user, params=self.params, text=text, data=data, str_fn=str_fn)
+                       domain=self.domain, ctcp=self.ctcp if ctcp is None else ctcp, user=self.user,
+                       params=self.params if params is None else params, text=text, data=data, str_fn=str_fn)
 
     def copy(self):
         return copy.copy(self)

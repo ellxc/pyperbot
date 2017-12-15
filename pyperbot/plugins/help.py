@@ -14,8 +14,13 @@ class Help:
     @command
     def commands(self, message):
         """list the available commands"""
-        return message.reply(list(self.bot.commands.keys()),
-                             "available commands: " + ", ".join(self.bot.commands.keys()))
+        coms = [name for name, func in self.bot.commands.items() if not hasattr(func, '_admin')]
+        return message.reply(coms, "available commands: " + ", ".join(coms))
+
+    @command(admin=True)
+    def admincommands(self, message):
+        coms = [name for name, func in self.bot.commands.items() if hasattr(func, '_admin')]
+        return message.reply(coms, "available commands: " + ", ".join(coms))
 
     @command
     def aliases(self, message):

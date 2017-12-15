@@ -277,6 +277,7 @@ def wrapinner(func, admin=False, rate_limit_no=0, rate_limit_period=10):
                 return await ratelimted(this, *args, out=out)
             else:
                 raise NotAuthed("you are not an admin!")
+
     else:
         final = ratelimted
 
@@ -298,6 +299,9 @@ def command(word=None, admin=False, rate_limit_no=0, rate_limit_period=10):  # m
             _func._commands.append(name)
             return _func
         _func._commands = [name]
+
+        if admin:
+            _func._admin = True
 
         outfunc = wrapinner(_func, admin=admin, rate_limit_no=rate_limit_no, rate_limit_period=rate_limit_period)
 
@@ -332,6 +336,9 @@ def pipeinable_command(word=None, admin=False, rate_limit_no=0, rate_limit_perio
             _func._commands.append(name)
             return _func
         _func._commands = [name]
+
+        if admin:
+            _func._admin = True
 
         outfunc = wrapinner(_func)
 
