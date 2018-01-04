@@ -9,6 +9,11 @@ from pyperbot.piping import PipeClosed
 from pyperbot.wrappers import plugin, complexcommand
 
 
+def printer(initial, outpipe):
+    def print_(*objects, sep=' '):
+        outpipe.send(initial.reply(sep.join(map(str, objects))))
+    return print_
+
 @plugin
 class Seval:
     @complexcommand(">")
@@ -19,14 +24,14 @@ class Seval:
         try:
             while 1:
                 x = await inpipe.recv()
-                response, _ = parse_string(self.bot.get_env(x), args.text)
+                response, _ = parse_string(ChainMap(self.bot.get_env(x), {"print": printer(args, outpipe)}), args.text)
                 called = True
                 if response:
                     for r in response:
                         outpipe.send(args.reply(data=r, str_fn=repr))
         except PipeClosed:
             if not called:
-                response, _ = parse_string(self.bot.get_env(args.reply()), args.text)
+                response, _ = parse_string(ChainMap(self.bot.get_env(args.reply()), {"print": printer(args, outpipe)}), args.text)
                 if response:
                     for r in response:
                         outpipe.send(args.reply(data=r, str_fn=repr))
