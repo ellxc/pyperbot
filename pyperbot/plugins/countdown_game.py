@@ -36,15 +36,15 @@ def check_expr(n, numbers):
             return find_nums(node.left) + find_nums(node.right)
         elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
             return find_nums(node.operand)
-
+        
     def check_counts(a, b):
-        all(a.count(x) <= b.count(x) for x in a)
+        return all(a.count(x) <= b.count(x) for x in a)
 
     return check_counts(find_nums(n), numbers)
     
 def eval_(node, numbers):
     if not check_expr(node, numbers):
-        raise Exception("nah m8")
+        raise Exception("bad countdown attempt")
     if isinstance(node, ast.Num):  # <number>
         if node.n in numbers:
             return node.n
