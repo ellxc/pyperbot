@@ -23,30 +23,14 @@ class IncorrectNumbers(Exception):
 
 def eval_expr(expr, numbers):
     try:
-        return eval_(ast.parse(expr, mode='eval').body, numbers)
+        return eval_(ast.parse(expr, mode='eval').body), numbers, numbers.copy())
     except SyntaxError:
         raise Exception("failed to parse attempt")
-
-
-def check_expr(n, numbers):
-    def find_nums(node):
-        if isinstance(node, ast.Num):  # <number>
-            return [node.n]
-        elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
-            return find_nums(node.left) + find_nums(node.right)
-        elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
-            return find_nums(node.operand)
-
-    def check_counts(a, b):
-        all(a.count(x) <= b.count(x) for x in a)
-
-    return check_counts(find_nums(n), numbers)
     
-def eval_(node, numbers):
-    if not check_expr(node, numbers):
-        raise Exception("nah m8")
+def eval_(node, numbers, available_nums):
     if isinstance(node, ast.Num):  # <number>
         if node.n in numbers:
+            available_numbers.remove(node.n)
             return node.n
         else:
             raise IncorrectNumbers(node.n)
