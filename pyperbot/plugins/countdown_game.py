@@ -23,21 +23,21 @@ class IncorrectNumbers(Exception):
 
 def eval_expr(expr, numbers):
     try:
-        return eval_(ast.parse(expr, mode='eval').body, numbers)
+        return eval_(ast.parse(expr, mode='eval').body, numbers, numbers.copy())
     except SyntaxError:
         raise Exception("failed to parse attempt")
-
-
-def eval_(node, numbers):
+    
+def eval_(node, numbers, available_nums):
     if isinstance(node, ast.Num):  # <number>
         if node.n in numbers:
+            available_nums.remove(node.n)
             return node.n
         else:
             raise IncorrectNumbers(node.n)
     elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
-        return operators[type(node.op)](eval_(node.left, numbers), eval_(node.right, numbers))
+        return operators[type(node.op)](eval_(node.left, numbers, available_nums), eval_(node.right, numbers, available_nums))
     elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
-        return operators[type(node.op)](eval_(node.operand, numbers))
+        return operators[type(node.op)](eval_(node.operand, numbers, available_nums))
     else:
         raise Exception("failed to parse attempt")
 
