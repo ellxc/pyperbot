@@ -1,7 +1,7 @@
 import json
 import async_timeout
 import aiohttp
-from pyperbot.wrappers import plugin, command
+from pyperbot.wrappers import plugin, command, trigger
 
 
 @plugin
