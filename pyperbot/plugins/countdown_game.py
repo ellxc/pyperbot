@@ -35,7 +35,7 @@ def eval_(node, numbers):
         except ValueError:
             raise IncorrectNumbers(node.n)
     elif isinstance(node, ast.BinOp):  # <left> <operator> <right>
-        return operators[type(node.op)](eval_(node.left, numbers), eval_(node.right, numbers))
+        return operators[type(node.op)](eval_(node.left, numbers, available_nums), eval_(node.right, numbers))
     elif isinstance(node, ast.UnaryOp):  # <operator> <operand> e.g., -1
         return operators[type(node.op)](eval_(node.operand, numbers))
     else:
@@ -116,7 +116,7 @@ class Countdown:
             def attempt_handler(message):
                 if message.params == msg.params:
                     try:
-                        result = eval_expr(message.text, numbers)
+                        result = eval_expr(message.text, numbers.copy())
                         attempts.append((result, message))
                         if result == target:
                             done.set_result(message)
