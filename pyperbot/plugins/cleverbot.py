@@ -11,7 +11,7 @@ class cleverbot:
         
     @command(rate_limit_no=2)
     async def talk(self, message):
-        async with async_timeout.timeout(10):
+        async with async_timeout.timeout(30):
             async with aiohttp.ClientSession() as session:
                 if self.nick is None:
                     params = params = {"user": "Ih7SiAskrVx87xF1", "key": "oHqp199HRBOBiN5thoXh1naFh6W2Vb07"}
