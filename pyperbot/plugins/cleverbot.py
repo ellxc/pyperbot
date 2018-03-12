@@ -7,10 +7,10 @@ from pyperbot.wrappers import plugin, command
 @plugin
 class cleverbot:
     def __init__(self, bot, config):
+        self.bot = bot
         self.nick = None
         
-    @command(rate_limit_no=2)
-    async def talk(self, message):
+    async chat(self, text):
         async with async_timeout.timeout(30):
             async with aiohttp.ClientSession() as session:
                 if self.nick is None:
@@ -19,7 +19,15 @@ class cleverbot:
                       response = json.loads(await resp.text())
                       self.nick = response['nick']
             
-                params = {"user": "Ih7SiAskrVx87xF1", "key": "oHqp199HRBOBiN5thoXh1naFh6W2Vb07", "text": message.text, "nick": self.nick}
+                params = {"user": "Ih7SiAskrVx87xF1", "key": "oHqp199HRBOBiN5thoXh1naFh6W2Vb07", "text": text, "nick": self.nick}
                 async with session.post('https://cleverbot.io/1.0/ask', headers={'User-Agent': 'Mozilla/5.0'}, data=params) as resp:
                     response = json.loads(await resp.text())
-                    return message.reply(response['response'])
+                    return response['response']
+        
+    @command(rate_limit_no=2)
+    async def talk(self, message):
+        return message.reply(await self.chat(message.text))
+    
+    @regex("Marvin: (.+)")
+    async def direct(self, message, match):
+        self.bot.send(message.reply(await self.chat(match.group(1))))
