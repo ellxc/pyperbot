@@ -30,4 +30,5 @@ class cleverbot:
     
     @regex("Marvin: (.+)")
     async def direct(self, message, match):
+        print("direct message")
         self.bot.send(message.reply(await self.chat(match.group(1))))
