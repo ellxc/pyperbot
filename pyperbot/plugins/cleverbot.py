@@ -28,7 +28,7 @@ class cleverbot:
     async def talk(self, message):
         return message.reply(await self.chat(message.text))
     
-    @regex("Marvin: (.+)")
-    async def direct(self, message, match):
+    @trigger(lambda m: m.text.startswith("Marvin: "))
+    async def direct(self, message):
         print("direct message")
-        self.bot.send(message.reply(await self.chat(match.group(1))))
+        self.bot.send(message.reply(await self.chat(message.text[9:] or "Hello")))
