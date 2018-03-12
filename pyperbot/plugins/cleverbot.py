@@ -10,7 +10,7 @@ class cleverbot:
         self.bot = bot
         self.nick = None
         
-    def async chat(self, text):
+    async def chat(self, text):
         async with async_timeout.timeout(30):
             async with aiohttp.ClientSession() as session:
                 if self.nick is None:
