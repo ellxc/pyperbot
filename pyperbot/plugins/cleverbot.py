@@ -10,7 +10,7 @@ class cleverbot:
         self.bot = bot
         self.nick = None
         
-    async chat(self, text):
+    def async chat(self, text):
         async with async_timeout.timeout(30):
             async with aiohttp.ClientSession() as session:
                 if self.nick is None:
@@ -28,7 +28,7 @@ class cleverbot:
     async def talk(self, message):
         return message.reply(await self.chat(message.text))
     
-    @trigger(lambda m: m.text.startswith("Marvin: "))
-    async def direct(self, message):
+    @regex("Marvin:(.*)")
+    async def direct(self, message, match):
         print("direct message")
-        self.bot.send(message.reply(await self.chat(message.text[9:] or "Hello")))
+        self.bot.send(message.reply(await self.chat(match.groups(1) or "Hello")))
